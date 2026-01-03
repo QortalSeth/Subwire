@@ -6,6 +6,7 @@ import {
   SERVICE_DOCUMENT,
   SERVICE_VIDEO,
   SERVICE_AUDIO,
+  SERVICE_FILE,
 } from '../constants/qdn';
 import ShortUniqueId from 'short-unique-id';
 
@@ -47,6 +48,8 @@ export const ENTITY_AUDIO = 'ARTICLE_AUDIO';
 // Group encrypted content identifiers
 export const GROUP_PRIVATE_ARTICLE = 'GROUP_PRIVATE_ARTICLE';
 export const GROUP_PRIVATE_EPISODE = 'GROUP_PRIVATE_EPISODE';
+export const GROUP_VIDEO_PRIVATE = 'GROUP_VIDEO_PRIVATE';
+export const GROUP_AUDIO_PRIVATE = 'GROUP_AUDIO_PRIVATE';
 
 /**
  * Convert a File or Blob to base64 string
@@ -292,18 +295,20 @@ export interface MediaAttachment {
   file: File;
   preview?: string;
   videoMetadata?: VideoMetadata;
-  // For existing videos when editing (not new uploads)
-  existingVideo?: ArticleVideo;
+  // For existing media when editing (not new uploads)
+  existingMedia?: ArticleMedia;
 }
 
 /**
- * Video reference in an article/episode
+ * Media reference in an article/episode (video or audio)
  */
-export interface ArticleVideo {
-  identifier: string; // Reference to the video metadata document
+export interface ArticleMedia {
+  identifier: string; // Reference to the media metadata document
   name: string;
   service: string;
-  mimeType?: string; // MIME type of the video (e.g., 'video/mp4')
+  mimeType?: string; // MIME type of the media (e.g., 'video/mp4', 'audio/mpeg')
+  key?: string; // Encryption key (base64) for encrypted media
+  iv?: string; // Encryption IV (base64) for encrypted media
 }
 
 export interface Article {
@@ -312,9 +317,7 @@ export interface Article {
   content: string; // Markdown content with perennial-image:// references
   coverImage: ArticleImage; // Required cover image for all article types
   images?: ArticleImage[]; // Additional Base64 images array from content
-  videos?: ArticleVideo[]; // Video/audio references for episodes
-  tags?: string[];
-  category: number; // Required category ID
+  media?: ArticleMedia[]; // Video/audio references for episodes
   timestamp: number;
   name: string;
   type: 'essay' | 'episode';
@@ -327,8 +330,6 @@ export interface PublishArticleParams {
   title: string;
   subtitle?: string;
   content: string;
-  tags?: string[];
-  category: number; // Required
   coverImage?: File; // Optional when editing (existingCoverImage will be used)
   media?: MediaAttachment[]; // Video/audio attachments for episodes
   identifierOperations: any;
@@ -342,9 +343,14 @@ export interface PublishArticleParams {
   existingImages?: ArticleImage[]; // Existing images when editing
   existingCoverImage?: string; // Existing cover image base64 when editing
   existingTimestamp?: number; // Original creation timestamp when editing
-  existingVideos?: ArticleVideo[]; // Existing videos when editing
+  existingMedia?: ArticleMedia[]; // Existing media when editing
   groupId?: number; // Optional group ID for encrypted articles
   encryptMetadata?: boolean; // If true, encrypt title/subtitle/coverImage (default: false - keep them public)
+  decryptedContent?: {
+    content: string;
+    images?: ArticleImage[];
+    media?: ArticleMedia[];
+  }; // Decrypted content for encrypted article updates
 }
 
 /**
@@ -356,6 +362,34 @@ function stripHtmlTags(html: string): string {
   const temp = document.createElement('div');
   temp.innerHTML = html;
   return temp.textContent || temp.innerText || '';
+}
+
+/**
+ * Truncate text to a maximum byte length
+ */
+function truncateByBytes(text: string, maxBytes: number): string {
+  if (!text || !text.trim()) return '';
+
+  const trimmed = text.trim();
+
+  // Limit to maxBytes (not characters)
+  const encoder = new TextEncoder();
+  let byteLength = 0;
+  let charIndex = 0;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+    const charBytes = encoder.encode(char).length;
+
+    if (byteLength + charBytes > maxBytes) {
+      break;
+    }
+
+    byteLength += charBytes;
+    charIndex = i + 1;
+  }
+
+  return trimmed.slice(0, charIndex);
 }
 
 /**
@@ -372,8 +406,6 @@ export async function publishArticle({
   title,
   subtitle,
   content,
-  tags,
-  category,
   coverImage,
   media,
   identifierOperations,
@@ -387,9 +419,10 @@ export async function publishArticle({
   existingImages,
   existingCoverImage,
   existingTimestamp,
-  existingVideos,
+  existingMedia,
   groupId,
   encryptMetadata = false, // Default: keep title/subtitle/coverImage public for discovery
+  decryptedContent,
 }: PublishArticleParams): Promise<string> {
   try {
     if (!userName) {
@@ -402,10 +435,6 @@ export async function publishArticle({
 
     if (!content.trim()) {
       throw new Error('Article content is required');
-    }
-
-    if (!category) {
-      throw new Error('Category is required');
     }
 
     if (!coverImage && !existingCoverImage) {
@@ -485,29 +514,93 @@ export async function publishArticle({
 
     // Process video/audio attachments for episodes (same pattern as example app)
     const resources: any[] = [];
-    const videos: ArticleVideo[] = [];
+    const mediaItems: ArticleMedia[] = [];
     const videoTempResources: any[] = [];
 
-    // Separate existing videos and new video uploads
-    if (media && media.length > 0) {
-      const existingVideoMedia = media.filter((m) => m.existingVideo);
-      const newVideoMedia = media.filter((m) => !m.existingVideo);
+    // Check for removed videos/audios in encrypted articles (when updating)
+    // For encrypted articles, get the original media from decryptedContent
+    // This needs to happen before processing new media
+    if (existingIdentifier && groupId && decryptedContent) {
+      const originalMedia = decryptedContent.media || [];
 
-      // Start with existing videos
-      if (existingVideoMedia.length > 0) {
-        videos.push(...existingVideoMedia.map((m) => m.existingVideo!));
+      if (originalMedia.length > 0) {
+        // Determine which media items are being kept
+        let keptMediaIdentifiers = new Set<string>();
+
+        if (media && media.length > 0) {
+          // If new media is provided, check which existing media are in it
+          const existingMediaAttachments = media.filter((m) => m.existingMedia);
+          keptMediaIdentifiers = new Set(
+            existingMediaAttachments.map((m) => m.existingMedia!.identifier)
+          );
+        }
+        // If media is undefined or empty, that means ALL media are being removed
+
+        // Find media that were in the original article but are not being kept
+        const removedMedia = originalMedia.filter(
+          (item) => !keptMediaIdentifiers.has(item.identifier)
+        );
+
+        // Add removed video/audio resources (both metadata and file) to deletion list
+        for (const removedItem of removedMedia) {
+          // Add the metadata document deletion to resources array
+          resources.push({
+            name: removedItem.name,
+            service: SERVICE_DOCUMENT,
+            identifier: removedItem.identifier,
+            data64: 'RA==', // Special value to mark resource for deletion
+          });
+
+          // For encrypted videos/audios, add the file deletion
+          resources.push({
+            name: removedItem.name,
+            service: SERVICE_FILE, // Encrypted videos/audios use FILE service
+            identifier: removedItem.identifier, // Same identifier for encrypted content
+            data64: 'RA==', // Special value to mark resource for deletion
+          });
+        }
+      }
+    }
+
+    // Separate existing media and new media uploads
+    if (media && media.length > 0) {
+      const existingMediaAttachments = media.filter((m) => m.existingMedia);
+      const newMediaUploads = media.filter((m) => !m.existingMedia);
+
+      // Start with existing media
+      if (existingMediaAttachments.length > 0) {
+        mediaItems.push(
+          ...existingMediaAttachments.map((m) => m.existingMedia!)
+        );
       }
 
       // Process new video/audio uploads
       // Videos get TWO resources: VIDEO service + DOCUMENT service (metadata)
       // Audio gets TWO resources: AUDIO service + DOCUMENT service (metadata)
-      for (const attachment of newVideoMedia) {
+      for (const attachment of newMediaUploads) {
         if (attachment.type === 'audio') {
           // Handle audio files - create identifier and metadata document
-          const audioIdentifier = await identifierOperations.buildIdentifier(
-            articleIdentifier,
-            ENTITY_AUDIO
-          );
+          // For encrypted audios (groupId present), use GROUP_AUDIO_PRIVATE structure
+          // For public audios, use article-based identifier
+          let audioIdentifier: string;
+
+          if (groupId) {
+            // Private group audio - use GROUP_AUDIO_PRIVATE structure (like example-app)
+            const audioParentEntity = GROUP_AUDIO_PRIVATE;
+            const audioChildEntity = groupId.toString();
+            audioIdentifier = await identifierOperations.buildIdentifier(
+              audioChildEntity,
+              audioParentEntity,
+              false,
+              audioParentEntity
+            );
+          } else {
+            // Public audio - use article-based identifier
+            audioIdentifier = await identifierOperations.buildIdentifier(
+              articleIdentifier,
+              ENTITY_AUDIO
+            );
+          }
 
           if (!audioIdentifier) {
             throw new Error('Failed to create audio identifier');
@@ -527,7 +620,7 @@ export async function publishArticle({
             audioReference: {
               name: userName,
               identifier: audioIdentifier,
-              service: SERVICE_AUDIO,
+              service: groupId ? SERVICE_FILE : SERVICE_AUDIO,
             },
             mimeType: attachment.file.type,
             filename: attachment.file.name,
@@ -573,12 +666,12 @@ export async function publishArticle({
           }
 
           // Add audio file resource to publish queue
+
           const audioFileResource: any = {
             identifier: audioIdentifier,
-            service: SERVICE_AUDIO,
+            service: groupId ? SERVICE_FILE : SERVICE_AUDIO, // Use FILE service for encrypted audios
             file: attachment.file,
             name: userName,
-            filename: attachment.file.name,
           };
 
           // Add encryption parameters for private group audio
@@ -588,6 +681,8 @@ export async function publishArticle({
               iv: encryptionIv,
               key: encryptionKey,
             };
+          } else {
+            audioFileResource.filename = attachment.file.name;
           }
 
           resources.push(audioFileResource);
@@ -598,7 +693,6 @@ export async function publishArticle({
             service: SERVICE_DOCUMENT,
             base64: metadataBase64,
             name: userName,
-            filename: 'audio_metadata.json',
           });
 
           videoTempResources.push({
@@ -613,7 +707,7 @@ export async function publishArticle({
 
           // Store reference to the metadata document in the article
           // For encrypted articles, also store encryption key and IV
-          const videoRef: any = {
+          const mediaRef: any = {
             identifier: audioIdentifier,
             service: SERVICE_DOCUMENT,
             name: userName,
@@ -621,92 +715,76 @@ export async function publishArticle({
           };
 
           if (groupId && encryptionKey && encryptionIv) {
-            videoRef.key = encryptionKey;
-            videoRef.iv = encryptionIv;
+            mediaRef.key = encryptionKey;
+            mediaRef.iv = encryptionIv;
           }
 
-          videos.push(videoRef);
+          mediaItems.push(mediaRef);
         } else {
-          // Handle video files - publish to qtube with metadata
+          // Handle video files
           if (!attachment.videoMetadata) {
             throw new Error('Video metadata is required');
           }
 
-          // Sanitize the video title for use in identifier
-          const sanitizeTitle = attachment.videoMetadata.title
-            .replace(/[^a-zA-Z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-')
-            .trim()
-            .toLowerCase();
-
-          // Generate a unique ID for this video
-          const id = uid.rnd();
-
-          // Create identifier for the video file (public videos only for now)
-          const videoIdentifier = `${QTUBE_VIDEO_BASE}${sanitizeTitle.slice(0, 30)}_${id}`;
-          const metadataIdentifier = `${videoIdentifier}_metadata`;
-
-          // Generate a short unique code for the video (5 characters)
-          const videoCode = shortuid.rnd();
-
-          // Generate comments identifier for the video
-          const commentsId = `${QTUBE_VIDEO_BASE}_cm_${id}`;
-
-          // Create video metadata document
-          const videoMetadataDoc: VideoMetadataDocument = {
-            title: attachment.videoMetadata.title,
-            version: 1,
-            htmlDescription: attachment.videoMetadata.description || '',
-            fullDescription: stripHtmlTags(
-              attachment.videoMetadata.description || ''
-            ),
-            videoReference: {
-              name: userName,
-              identifier: videoIdentifier,
-              service: SERVICE_VIDEO,
-            },
-            commentsId,
-            code: videoCode,
-            videoType: attachment.file.type,
-            filename: attachment.file.name,
-            fileSize: attachment.file.size,
-            duration: attachment.videoMetadata.duration || 0,
-            category: attachment.videoMetadata.category,
-            ...(attachment.videoMetadata.videoImage && {
-              videoImage: attachment.videoMetadata.videoImage,
-            }),
-            ...(attachment.videoMetadata.extracts &&
-              attachment.videoMetadata.extracts.length > 0 && {
-                extracts: attachment.videoMetadata.extracts,
-              }),
-            ...(attachment.videoMetadata.subcategory && {
-              subcategory: attachment.videoMetadata.subcategory,
-            }),
-          };
-
-          // Create metadata description with category info
-          const subcategoryStr = attachment.videoMetadata.subcategory || '';
-          const fullDescriptionText = stripHtmlTags(
-            attachment.videoMetadata.description || ''
-          );
-          const metadescription =
-            `**category:${attachment.videoMetadata.category};subcategory:${subcategoryStr};code:${videoCode}**` +
-            fullDescriptionText.slice(0, 150);
-
-          // Convert metadata to base64
-          let metadataBase64 = await objectToBase64(videoMetadataDoc);
-
-          // Generate encryption parameters for private group videos
-          let encryptionKey: string | undefined;
-          let encryptionIv: string | undefined;
-
+          // For encrypted videos, don't publish to QTube (following example-app pattern)
+          // Instead, publish as encrypted video file + metadata with the SAME identifier
           if (groupId) {
-            const { key, iv } = createEncryptionParams();
-            encryptionKey = bytesToBase64(key);
-            encryptionIv = bytesToBase64(iv);
+            // ENCRYPTED VIDEO: Don't use QTube, use GROUP_VIDEO_PRIVATE structure (like example-app)
+            const videoParentEntity = GROUP_VIDEO_PRIVATE;
+            const videoChildEntity = groupId.toString();
+            const videoIdentifier = await identifierOperations.buildIdentifier(
+              videoChildEntity,
+              videoParentEntity,
+              false,
+              videoParentEntity
+            );
 
-            // Encrypt the video metadata for private groups
+            if (!videoIdentifier) {
+              throw new Error('Failed to create video identifier');
+            }
+
+            // Use simplified metadata for encrypted videos (no QTube fields)
+            const videoTitle =
+              attachment.videoMetadata.title || attachment.file.name;
+            const videoDescription = attachment.videoMetadata.description || '';
+
+            // Create simplified video metadata document (no QTube-specific fields)
+            const videoMetadataDoc: VideoMetadataDocument = {
+              title: videoTitle,
+              version: 1,
+              htmlDescription: videoDescription,
+              fullDescription: stripHtmlTags(videoDescription),
+              videoReference: {
+                name: userName,
+                identifier: videoIdentifier,
+                service: SERVICE_FILE, // Keep service reference for compatibility
+              },
+              videoType: attachment.file.type,
+              filename: attachment.file.name,
+              fileSize: attachment.file.size,
+              duration: attachment.videoMetadata.duration || 0,
+              category: attachment.videoMetadata.category,
+              ...(attachment.videoMetadata.videoImage && {
+                videoImage: attachment.videoMetadata.videoImage,
+              }),
+              ...(attachment.videoMetadata.extracts &&
+                attachment.videoMetadata.extracts.length > 0 && {
+                  extracts: attachment.videoMetadata.extracts,
+                }),
+              ...(attachment.videoMetadata.subcategory && {
+                subcategory: attachment.videoMetadata.subcategory,
+              }),
+            };
+
+            // Convert metadata to base64
+            let metadataBase64 = await objectToBase64(videoMetadataDoc);
+
+            // Generate encryption parameters
+            const { key, iv } = createEncryptionParams();
+            const encryptionKey = bytesToBase64(key);
+            const encryptionIv = bytesToBase64(iv);
+
+            // Encrypt the video metadata
             try {
               metadataBase64 = await qortalRequest({
                 action: 'ENCRYPT_QORTAL_GROUP_DATA',
@@ -730,85 +808,163 @@ export async function publishArticle({
               }
               throw error;
             }
-          }
 
-          // Add video file resource to publish queue
-          // Only add tag1 for public videos (not private group videos)
-          const videoResource: any = {
-            identifier: videoIdentifier,
-            service: SERVICE_VIDEO,
-            file: attachment.file,
-            name: userName,
-            title: attachment.videoMetadata.title.slice(0, 50),
-            description: metadescription,
-            filename: attachment.file.name,
-          };
-
-          // Add tag1 only for public videos
-          if (!groupId) {
-            videoResource.tag1 = QTUBE_VIDEO_BASE;
-          }
-
-          // Add encryption parameters for private group videos
-          if (groupId && encryptionKey && encryptionIv) {
-            videoResource.encryption = {
-              encryptionType: 'streamed-v1',
-              iv: encryptionIv,
-              key: encryptionKey,
-            };
-          }
-
-          resources.push(videoResource);
-
-          // Add metadata document resource to publish queue
-          const metadataResource: any = {
-            identifier: metadataIdentifier,
-            service: SERVICE_DOCUMENT,
-            base64: metadataBase64,
-            name: userName,
-            title: attachment.videoMetadata.title.slice(0, 50),
-            description: metadescription,
-            filename: 'video_metadata.json',
-            code: videoCode,
-          };
-
-          // Add tag1 only for public videos
-          if (!groupId) {
-            metadataResource.tag1 = QTUBE_VIDEO_BASE;
-          }
-
-          resources.push(metadataResource);
-
-          videoTempResources.push({
-            qortalMetadata: {
+            // Add encrypted video file resource (using SERVICE_FILE for encrypted videos)
+            // This keeps it private and not discoverable on QTube
+            resources.push({
+              identifier: videoIdentifier,
+              service: SERVICE_FILE,
+              file: attachment.file,
               name: userName,
+              encryption: {
+                encryptionType: 'streamed-v1',
+                iv: encryptionIv,
+                key: encryptionKey,
+              },
+            });
+
+            // Add encrypted metadata document
+            resources.push({
+              identifier: videoIdentifier,
               service: SERVICE_DOCUMENT,
+              base64: metadataBase64,
+              name: userName,
+            });
+
+            videoTempResources.push({
+              qortalMetadata: {
+                name: userName,
+                service: SERVICE_DOCUMENT,
+                identifier: videoIdentifier,
+                created: Date.now(),
+              },
+              data: videoMetadataDoc,
+            });
+
+            // Store reference with encryption keys
+            mediaItems.push({
+              identifier: videoIdentifier,
+              service: SERVICE_DOCUMENT,
+              name: userName,
+              mimeType: attachment.file.type,
+              key: encryptionKey,
+              iv: encryptionIv,
+            });
+          } else {
+            // PUBLIC VIDEO: Publish to QTube with full metadata
+            // Sanitize the video title for use in identifier
+            const sanitizeTitle = attachment.videoMetadata.title
+              .replace(/[^a-zA-Z0-9\s-]/g, '')
+              .replace(/\s+/g, '-')
+              .replace(/-+/g, '-')
+              .trim()
+              .toLowerCase();
+
+            // Generate a unique ID for this video
+            const id = uid.rnd();
+
+            // Create identifier for the video file
+            const videoIdentifier = `${QTUBE_VIDEO_BASE}${sanitizeTitle.slice(0, 30)}_${id}`;
+            const metadataIdentifier = `${videoIdentifier}_metadata`;
+
+            // Generate a short unique code for the video (5 characters)
+            const videoCode = shortuid.rnd();
+
+            // Generate comments identifier for the video
+            const commentsId = `${QTUBE_VIDEO_BASE}_cm_${id}`;
+
+            // Create video metadata document with all QTube fields
+            const videoMetadataDoc: VideoMetadataDocument = {
+              title: attachment.videoMetadata.title,
+              version: 1,
+              htmlDescription: attachment.videoMetadata.description || '',
+              fullDescription: stripHtmlTags(
+                attachment.videoMetadata.description || ''
+              ),
+              videoReference: {
+                name: userName,
+                identifier: videoIdentifier,
+                service: SERVICE_VIDEO,
+              },
+              commentsId,
+              code: videoCode,
+              videoType: attachment.file.type,
+              filename: attachment.file.name,
+              fileSize: attachment.file.size,
+              duration: attachment.videoMetadata.duration || 0,
+              category: attachment.videoMetadata.category,
+              ...(attachment.videoMetadata.videoImage && {
+                videoImage: attachment.videoMetadata.videoImage,
+              }),
+              ...(attachment.videoMetadata.extracts &&
+                attachment.videoMetadata.extracts.length > 0 && {
+                  extracts: attachment.videoMetadata.extracts,
+                }),
+              ...(attachment.videoMetadata.subcategory && {
+                subcategory: attachment.videoMetadata.subcategory,
+              }),
+            };
+
+            // Create metadata description with category info
+            const subcategoryStr = attachment.videoMetadata.subcategory || '';
+            const fullDescriptionText = stripHtmlTags(
+              attachment.videoMetadata.description || ''
+            );
+            const metadescription =
+              `**category:${attachment.videoMetadata.category};subcategory:${subcategoryStr};code:${videoCode}**` +
+              fullDescriptionText.slice(0, 150);
+
+            // Convert metadata to base64
+            const metadataBase64 = await objectToBase64(videoMetadataDoc);
+
+            // Add public video file resource with QTube tag
+            resources.push({
+              identifier: videoIdentifier,
+              service: SERVICE_VIDEO,
+              file: attachment.file,
+              name: userName,
+              title: truncateByBytes(attachment.videoMetadata.title, 75),
+              description: metadescription,
+              filename: attachment.file.name,
+              tag1: QTUBE_VIDEO_BASE, // Makes it discoverable on QTube
+            });
+
+            // Add public metadata document resource with QTube tag
+            resources.push({
               identifier: metadataIdentifier,
-              created: Date.now(),
-            },
-            data: videoMetadataDoc,
-          });
+              service: SERVICE_DOCUMENT,
+              base64: metadataBase64,
+              name: userName,
+              title: truncateByBytes(attachment.videoMetadata.title, 75),
+              description: metadescription,
+              filename: 'video_metadata.json',
+              code: videoCode,
+              tag1: QTUBE_VIDEO_BASE, // Makes it discoverable on QTube
+            });
 
-          // Store reference to the metadata document in the article
-          // For encrypted articles, also store encryption key and IV
-          const videoRef: any = {
-            identifier: metadataIdentifier,
-            service: SERVICE_DOCUMENT,
-            name: userName,
-            mimeType: attachment.file.type,
-          };
+            videoTempResources.push({
+              qortalMetadata: {
+                name: userName,
+                service: SERVICE_DOCUMENT,
+                identifier: metadataIdentifier,
+                created: Date.now(),
+              },
+              data: videoMetadataDoc,
+            });
 
-          if (groupId && encryptionKey && encryptionIv) {
-            videoRef.key = encryptionKey;
-            videoRef.iv = encryptionIv;
+            // Store reference to the metadata document
+            mediaItems.push({
+              identifier: metadataIdentifier,
+              service: SERVICE_DOCUMENT,
+              name: userName,
+              mimeType: attachment.file.type,
+            });
           }
-
-          videos.push(videoRef);
         }
       }
-    } else if (existingVideos && existingVideos.length > 0) {
-      // Use existing videos when editing
-      videos.push(...existingVideos);
+    } else if (existingMedia && existingMedia.length > 0) {
+      // Use existing media when editing
+      mediaItems.push(...existingMedia);
     }
 
     // Create article metadata
@@ -818,9 +974,7 @@ export async function publishArticle({
       content: processedContent, // Content with perennial-image:// references
       coverImage: coverImageData, // Required cover image for all types
       images: images.length > 0 ? images : undefined, // Additional images from content
-      videos: videos.length > 0 ? videos : undefined, // Video/audio references for episodes
-      tags: tags && tags.length > 0 ? tags : undefined,
-      category, // Required
+      media: mediaItems.length > 0 ? mediaItems : undefined, // Video/audio references for episodes
       timestamp: existingTimestamp || Date.now(), // Preserve original timestamp when updating
       name: userName,
       type,
@@ -858,12 +1012,11 @@ export async function publishArticle({
           };
         } else {
           // Partial encryption (default): keep title, subtitle, and coverImage public for discovery
-          // Only encrypt the sensitive content (content, images, videos, tags)
+          // Only encrypt the sensitive content (content, images, media)
           const contentToEncrypt = {
             content: article.content,
             images: article.images,
-            videos: article.videos,
-            tags: article.tags,
+            media: article.media,
           };
 
           const contentBase64 = await objectToBase64(contentToEncrypt);
@@ -884,7 +1037,6 @@ export async function publishArticle({
             name: userName,
             groupId,
             encryptedContent,
-            category, // Keep category public for filtering
             type,
             published: true,
           };
@@ -911,32 +1063,14 @@ export async function publishArticle({
       articleDataToPublish = article;
     }
 
-    // Extract hashtags for search description
-    const allTags = [...(tags || [])];
-    const hashtagMatches = content.match(/#\w+/g);
-    if (hashtagMatches) {
-      allTags.push(...hashtagMatches.map((tag) => tag.substring(1)));
-    }
-
-    // Build description with category and tags
-    const descriptionParts: string[] = [];
-
-    // Add category info
-    descriptionParts.push(`**category:${category}**`);
-
-    // Add normalized tags (take first 3)
-    if (allTags.length > 0) {
-      const normalizedTags = allTags
-        .slice(0, 3)
-        .map((tag) => `~${tag.toLowerCase()}~`)
-        .join(',');
-      descriptionParts.push(normalizedTags);
-    }
-
-    const description = descriptionParts.join(' ');
+    // Build description from subtitle (max 180 bytes)
+    const description = truncateByBytes(subtitle || '', 180);
 
     // Convert article to base64 - always use articleDataToPublish which contains encryptedContent if encrypted
     const articleBase64 = await objectToBase64(articleDataToPublish);
+
+    // Truncate title to max 75 bytes
+    const truncatedTitle = truncateByBytes(title, 75);
 
     // Add article resource to the resources array (videos already added above)
     resources.push({
@@ -944,7 +1078,7 @@ export async function publishArticle({
       service: SERVICE_DOCUMENT,
       name: userName,
       data64: articleBase64,
-      title: title.slice(0, 50),
+      title: truncatedTitle,
       description: description,
     });
 
@@ -1045,24 +1179,95 @@ export async function publishArticle({
  * This function deletes the article using the QortalMetadata object directly.
  * The deleteResource function from lists will handle the actual deletion.
  * Note: Images are stored as base64 in the article, so they don't need separate deletion.
+ * Videos/audios for encrypted articles need to be deleted separately.
  *
  * @param articleMetadata - The QortalMetadata of the article to delete
- * @param article - The article data (currently unused, but kept for consistency with example app)
+ * @param article - The article data
  * @param deleteResourceFn - The deleteResource function from lists
  * @returns Promise that resolves when deletion is complete
  */
 export async function deleteArticle(
   articleMetadata: any,
-  _article: Article,
+  article: Article,
   deleteResourceFn: (resourcesToDelete: any[]) => Promise<boolean>
 ): Promise<void> {
   try {
     const resourcesToDelete: any[] = [articleMetadata];
 
-    // Note: Unlike posts with videos, articles store all images as base64
-    // within the article data, so we only need to delete the article itself
+    // For encrypted articles with videos/audios, we need to delete the media resources too
+    if (article.groupId && article.encryptedContent) {
+      try {
+        // Decrypt the content to get the media references
+        const decrypted = await qortalRequest({
+          action: 'DECRYPT_QORTAL_GROUP_DATA',
+          groupId: article.groupId,
+          base64: article.encryptedContent,
+        });
 
-    // Delete the article
+        // Parse the decrypted content
+        const jsonString = decodeURIComponent(escape(atob(decrypted)));
+        const parsedContent = JSON.parse(jsonString);
+
+        // If there are media items, add them to the deletion list
+        if (parsedContent.media && Array.isArray(parsedContent.media)) {
+          for (const mediaItem of parsedContent.media) {
+            // Add the metadata document to deletion list
+            resourcesToDelete.push({
+              name: mediaItem.name,
+              service: SERVICE_DOCUMENT,
+              identifier: mediaItem.identifier,
+              created: 0,
+              size: 0,
+            });
+
+            // Add the media file to deletion list
+            // For encrypted videos/audios, use FILE service
+            resourcesToDelete.push({
+              name: mediaItem.name,
+              service: SERVICE_FILE,
+              identifier: mediaItem.identifier, // Same identifier for encrypted content
+              created: 0,
+              size: 0,
+            });
+          }
+        }
+      } catch (error) {
+        // If decryption fails, just log it and continue with article deletion
+        // This might happen if user no longer has access to the group
+        console.error('Failed to decrypt article for media deletion:', error);
+      }
+    } else if (article.media && Array.isArray(article.media)) {
+      // For public articles, only delete audios (not QTube videos)
+      // Audios are article-specific, but QTube videos exist independently
+      for (const mediaItem of article.media) {
+        // Check if it's an audio by looking at mimeType or service
+        const isAudio = mediaItem.mimeType?.startsWith('audio/');
+
+        if (isAudio) {
+          // Add the metadata document to deletion list
+          resourcesToDelete.push({
+            name: mediaItem.name,
+            service: SERVICE_DOCUMENT,
+            identifier: mediaItem.identifier,
+            created: 0,
+            size: 0,
+          });
+
+          // Add the audio file to deletion list
+          resourcesToDelete.push({
+            name: mediaItem.name,
+            service: SERVICE_AUDIO,
+            identifier: mediaItem.identifier,
+            created: 0,
+            size: 0,
+          });
+        }
+        // Note: We intentionally don't delete public QTube videos
+        // as they exist independently on QTube
+      }
+    }
+
+    // Delete the article and any associated audio resources
     await deleteResourceFn(resourcesToDelete);
   } catch (error) {
     console.error('Error deleting article:', error);

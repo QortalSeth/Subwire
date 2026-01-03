@@ -1,5 +1,5 @@
 import { styled } from '@mui/material/styles';
-import { Box, Typography, Chip, Card, Avatar } from '@mui/material';
+import { Box, Typography, Card, Avatar } from '@mui/material';
 import {
   PlayCircleOutline as VideoIcon,
   AudiotrackOutlined as AudioIcon,
@@ -87,7 +87,7 @@ interface ArticleData {
     src: string;
   };
   type?: 'essay' | 'episode';
-  videos?: Array<{
+  media?: Array<{
     identifier: string;
     service: string;
     mimeType?: string;
@@ -195,7 +195,7 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
           subtitle: decryptedContent.subtitle || data.subtitle,
           coverImage: decryptedContent.coverImage || data.coverImage,
           tags: decryptedContent.tags || data.tags,
-          videos: decryptedContent.videos || data.videos,
+          media: decryptedContent.media || data.media,
         }
       : data;
 
@@ -229,11 +229,11 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
 
   // Determine if there's video or audio content (only for non-encrypted or partial encrypted)
   const hasVideo =
-    !isEncrypted && displayData.videos && displayData.videos.length > 0;
+    !isEncrypted && displayData.media && displayData.media.length > 0;
   const hasAudio =
     hasVideo &&
-    displayData.videos &&
-    displayData.videos.some((v) => v.mimeType?.startsWith('audio/'));
+    displayData.media &&
+    displayData.media.some((v: any) => v.mimeType?.startsWith('audio/'));
 
   // For fully encrypted articles without public metadata, show a lock badge
   // const isFullyEncrypted = isEncrypted && !hasPublicMetadata; // Already defined above
@@ -414,39 +414,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
             🔒 This content is only visible to subscribers
           </Typography>
         )}
-
-        {/* Tags - only show if not encrypted or has public metadata */}
-        {displayData.tags &&
-          displayData.tags.length > 0 &&
-          (!isEncrypted || hasPublicMetadata) && (
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
-              {displayData.tags.slice(0, 3).map((tag, index) => (
-                <Chip
-                  key={index}
-                  label={tag}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    fontSize: '0.7rem',
-                    height: 22,
-                    borderRadius: '4px',
-                  }}
-                />
-              ))}
-              {displayData.tags.length > 3 && (
-                <Chip
-                  label={`+${displayData.tags.length - 3}`}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    fontSize: '0.7rem',
-                    height: 22,
-                    borderRadius: '4px',
-                  }}
-                />
-              )}
-            </Box>
-          )}
 
         {/* Author Info */}
         <AuthorSection

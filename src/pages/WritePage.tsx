@@ -12,10 +12,6 @@ import {
   Tab,
   Chip,
   CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   FormControlLabel,
   Switch,
@@ -49,7 +45,6 @@ import {
   showLoading,
   dismissToast,
   usePublish,
-  VideoPlayer,
 } from 'qapp-core';
 import {
   publishArticle,
@@ -57,7 +52,6 @@ import {
   MediaAttachment,
 } from '../utils/articleQdn';
 import { VideoMetadataDialog } from '../components/VideoMetadataDialog';
-import { CATEGORIES } from '../constants/categories';
 import {
   saveDraft,
   deleteDraft,
@@ -73,6 +67,7 @@ import {
 } from '../state/global/profile';
 import { useGroupDetails } from '../hooks/useGroupDetails';
 import { useAtom } from 'jotai';
+import { useMediaInfo } from '../hooks/useMediaInfo';
 
 const EditorContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
@@ -258,14 +253,6 @@ const VideoPreviewStyled = styled('video')(({ theme }) => ({
   border: `1px solid ${theme.palette.divider}`,
 }));
 
-const VideoPlayerContainer = styled(Box)(({ theme }) => ({
-  width: '100%',
-  marginBottom: theme.spacing(3),
-  borderRadius: theme.spacing(2),
-  overflow: 'hidden',
-  border: `1px solid ${theme.palette.divider}`,
-}));
-
 const ToolbarDivider = styled(Box)(({ theme }) => ({
   width: 1,
   height: 24,
@@ -273,18 +260,25 @@ const ToolbarDivider = styled(Box)(({ theme }) => ({
   margin: theme.spacing(0, 1),
 }));
 
+// Helper function to get file extension
+const getFileExtension = (file: File): string => {
+  const fileName = file.name;
+  const lastDot = fileName.lastIndexOf('.');
+  if (lastDot === -1) return '';
+  return fileName.substring(lastDot + 1).toLowerCase();
+};
+
 export const WritePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { type } = useParams<{ type: 'essay' | 'episode' }>();
+  const { isHEVC } = useMediaInfo();
   const { auth, identifierOperations, lists } = useGlobal();
   const { publishMultipleResources } = usePublish();
   const [currentTab, setCurrentTab] = useState(0);
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [category, setCategory] = useState<number>(1); // Default to Qortal
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverImagePreview, setCoverImagePreview] = useState<string>('');
   const [mediaFile, setMediaFile] = useState<{
@@ -340,9 +334,16 @@ export const WritePage = () => {
     if (hasSubscriptionGroup && userEncryptionKey) {
       const savedPref = encryptionPreferences[userEncryptionKey];
       // Load saved preference or default to false
+      console.log(
+        'Loading encryption preference:',
+        savedPref,
+        'for key:',
+        userEncryptionKey
+      );
       setIsEncrypted(savedPref === true);
     } else {
       // Reset to false if no subscription group
+      console.log('No subscription group, setting isEncrypted to false');
       setIsEncrypted(false);
     }
     // Only run when dependencies change, not when isEncrypted changes
@@ -369,6 +370,7 @@ export const WritePage = () => {
 
   // Save preference to storage when toggle changes (but only if user made the change)
   const handleEncryptionToggle = (checked: boolean) => {
+    console.log('Encryption toggle changed to:', checked);
     setIsEncrypted(checked);
     if (hasSubscriptionGroup && userEncryptionKey) {
       setEncryptionPreferences((prev) => ({
@@ -379,6 +381,34 @@ export const WritePage = () => {
     // Reset metadata encryption when turning off encryption
     if (!checked) {
       setEncryptMetadata(false);
+    }
+
+    // Handle video metadata based on encryption mode
+    if (mediaFile?.type === 'video') {
+      if (checked) {
+        // Switching TO encrypted mode - auto-generate minimal metadata
+        console.log(
+          'Switching to encrypted mode - auto-generating minimal metadata'
+        );
+        const nameWithoutExt = mediaFile.file.name.replace(/\.[^/.]+$/, '');
+        setVideoMetadata({
+          title: nameWithoutExt,
+          description: '',
+          category: 1, // Default category
+          duration: undefined,
+          videoImage: undefined,
+          extracts: [],
+          subcategory: undefined,
+        });
+      } else {
+        // Switching TO public mode - prompt for video metadata if not already set
+        if (!videoMetadata) {
+          console.log(
+            'Switching to public mode - prompting for video metadata'
+          );
+          setShowMetadataDialog(true);
+        }
+      }
     }
   };
 
@@ -404,8 +434,6 @@ export const WritePage = () => {
           setTitle(draft.title);
           setSubtitle(draft.subtitle);
           setContent(draft.content);
-          setTags(draft.tags);
-          setCategory(draft.category);
 
           // Restore cover image from base64
           if (draft.coverImagePreview) {
@@ -494,8 +522,6 @@ export const WritePage = () => {
         title,
         subtitle,
         content,
-        tags,
-        category,
         coverImagePreview,
         coverImageData,
         coverImageFilename,
@@ -534,7 +560,21 @@ export const WritePage = () => {
       return;
     }
 
-    if (type === 'episode' && mediaFile?.type === 'video' && !videoMetadata) {
+    // Video metadata is only required for PUBLIC videos, not encrypted ones
+    console.log(
+      'Publish validation - isEncrypted:',
+      isEncrypted,
+      'mediaFile type:',
+      mediaFile?.type,
+      'videoMetadata:',
+      videoMetadata
+    );
+    if (
+      type === 'episode' &&
+      mediaFile?.type === 'video' &&
+      !isEncrypted &&
+      !videoMetadata
+    ) {
       showError('Please add metadata for your video');
       return;
     }
@@ -558,24 +598,32 @@ export const WritePage = () => {
       // Prepare media attachments for episodes
       let media: MediaAttachment[] | undefined;
       if (type === 'episode' && mediaFile) {
+        console.log('=== PREPARING MEDIA FOR PUBLISH ===');
+        console.log('mediaFile.type:', mediaFile.type);
+        console.log('isEncrypted:', isEncrypted);
+        console.log('videoMetadata:', videoMetadata);
+        console.log('===================================');
+
         media = [
           {
             type: mediaFile.type,
             file: mediaFile.file,
+            // Include videoMetadata for ALL videos (encrypted and public)
+            // Encrypted videos use auto-generated minimal metadata
             videoMetadata:
               mediaFile.type === 'video'
                 ? videoMetadata || undefined
                 : undefined,
           },
         ];
+
+        console.log('Prepared media:', media);
       }
 
       const identifier = await publishArticle({
         title,
         subtitle,
         content,
-        tags,
-        category,
         coverImage,
         media,
         identifierOperations,
@@ -590,8 +638,17 @@ export const WritePage = () => {
       });
 
       // Delete draft after successful publish
+      // Don't let draft deletion errors prevent showing success
       if (draftId && auth.name) {
-        await deleteDraft(auth.name, draftId);
+        try {
+          await deleteDraft(auth.name, draftId);
+        } catch (error) {
+          console.error(
+            'Error deleting draft (article was published successfully):',
+            error
+          );
+          // Don't show error to user - article was published successfully
+        }
       }
 
       dismissToast(loadingId);
@@ -681,7 +738,7 @@ export const WritePage = () => {
     setCoverImagePreview('');
   };
 
-  const handleMediaFileUpload = (
+  const handleMediaFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
@@ -699,6 +756,34 @@ export const WritePage = () => {
       );
 
       if (isVideo || isAudio) {
+        // Validate video file for unsupported formats (HEVC codec and MKV container)
+        if (isVideo) {
+          const notSupportedCodec = await isHEVC(file);
+          const isMKV = getFileExtension(file) === 'mkv';
+          const isUnsupportedFile = notSupportedCodec || isMKV;
+
+          if (isUnsupportedFile) {
+            if (notSupportedCodec) {
+              showError(`${file.name} uses the unsupported encoding: HEVC`);
+            }
+            if (isMKV) {
+              showError(
+                `${file.name} uses the unsupported file container: MKV`
+              );
+            }
+
+            // Reset the input
+            event.target.value = '';
+            return;
+          }
+        }
+
+        console.log('=== VIDEO UPLOAD DEBUG ===');
+        console.log('isEncrypted state:', isEncrypted);
+        console.log('hasSubscriptionGroup:', hasSubscriptionGroup);
+        console.log('Current videoMetadata:', videoMetadata);
+        console.log('========================');
+
         setMediaFile({
           file,
           name: file.name,
@@ -706,9 +791,9 @@ export const WritePage = () => {
         });
         event.target.value = '';
 
-        // Open metadata dialog for video files only
+        // Open metadata dialog for all video files (encrypted and non-encrypted)
         if (isVideo) {
-          console.log('Opening video metadata dialog for WritePage');
+          console.log('Opening video metadata dialog');
           setShowMetadataDialog(true);
         }
       }
@@ -813,18 +898,18 @@ export const WritePage = () => {
 
       {/* Tabs */}
       <Box
-        sx={{
+        sx={(theme) => ({
           position: 'sticky',
           top: 64,
           zIndex: 10,
           borderBottom: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
-          boxShadow: (theme) =>
+          boxShadow:
             theme.palette.mode === 'light'
               ? '0 1px 3px rgba(0, 0, 0, 0.05)'
               : '0 1px 3px rgba(0, 0, 0, 0.3)',
-        }}
+        })}
       >
         <Container maxWidth="lg">
           <Box
@@ -958,6 +1043,124 @@ export const WritePage = () => {
               />
             </EditorToolbar>
 
+            {hasSubscriptionGroup && (
+              <Box
+                sx={{
+                  mb: 3,
+                  p: 2,
+                  borderRadius: 2,
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === 'dark'
+                      ? 'rgba(29, 155, 240, 0.1)'
+                      : 'rgba(29, 155, 240, 0.05)',
+                  border: (theme) => `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LockIcon fontSize="small" color="primary" />
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      Subscription Content
+                    </Typography>
+                    <Tooltip title="Publish this article encrypted for your subscription group members only">
+                      <InfoIcon fontSize="small" color="action" />
+                    </Tooltip>
+                  </Box>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={isEncrypted}
+                        onChange={(e) =>
+                          handleEncryptionToggle(e.target.checked)
+                        }
+                        color="primary"
+                      />
+                    }
+                    label={isEncrypted ? 'Encrypted' : 'Public'}
+                  />
+                </Box>
+
+                {/* Metadata Encryption Toggle - Only shown when content is encrypted */}
+                {isEncrypted && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1,
+                      p: 2,
+                      backgroundColor: 'background.paper',
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      mt: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Box
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                      >
+                        <Typography variant="body2" fontWeight={500}>
+                          Also encrypt title, subtitle & cover image
+                        </Typography>
+                        <Tooltip title="By default, title, subtitle and cover image remain public for discovery. Enable this to encrypt everything.">
+                          <InfoIcon fontSize="small" color="action" />
+                        </Tooltip>
+                      </Box>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={encryptMetadata}
+                            onChange={(e) =>
+                              handleMetadataEncryptionToggle(e.target.checked)
+                            }
+                            color="primary"
+                            size="small"
+                          />
+                        }
+                        label=""
+                        sx={{ m: 0 }}
+                      />
+                    </Box>
+                    <Alert
+                      severity={encryptMetadata ? 'warning' : 'info'}
+                      sx={{ py: 0.5 }}
+                    >
+                      <Typography variant="caption">
+                        {encryptMetadata
+                          ? 'Article will be completely encrypted.'
+                          : 'Title, subtitle and cover will be visible to everyone for discovery. Only content will be encrypted.'}
+                      </Typography>
+                    </Alert>
+                  </Box>
+                )}
+
+                {isEncrypted && groupDetails && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Alert severity="info" sx={{ py: 0.5 }}>
+                      <Typography variant="caption">
+                        Only members of{' '}
+                        <strong>{groupDetails.groupName}</strong> (
+                        {groupDetails.memberCount || 0} subscribers) will be
+                        able to read this article
+                      </Typography>
+                    </Alert>
+                  </Box>
+                )}
+              </Box>
+            )}
+
             {/* Media File Upload - Required for episodes */}
             {type === 'episode' && (
               <Box sx={{ mb: 3 }}>
@@ -992,17 +1195,27 @@ export const WritePage = () => {
                         <Typography variant="body2" color="text.secondary">
                           {mediaFile.name}
                         </Typography>
-                        {mediaFile.type === 'video' && !videoMetadata && (
-                          <Button
+                        {mediaFile.type === 'video' &&
+                          !isEncrypted &&
+                          !videoMetadata && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => setShowMetadataDialog(true)}
+                              sx={{ mt: 1 }}
+                            >
+                              Add Metadata
+                            </Button>
+                          )}
+                        {mediaFile.type === 'video' && isEncrypted && (
+                          <Chip
+                            label="Encrypted Video"
+                            color="primary"
                             size="small"
-                            variant="outlined"
-                            onClick={() => setShowMetadataDialog(true)}
                             sx={{ mt: 1 }}
-                          >
-                            Add Metadata
-                          </Button>
+                          />
                         )}
-                        {videoMetadata && (
+                        {videoMetadata && !isEncrypted && (
                           <Chip
                             label="Metadata Added"
                             color="success"
@@ -1098,177 +1311,6 @@ export const WritePage = () => {
                   </Typography>
                 </CoverImageContainer>
               )}
-            </Box>
-
-            {/* Category & Tags - At the top for maximum visibility */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                Category *
-              </Typography>
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <Select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as number)}
-                >
-                  {CATEGORIES.map((cat) => (
-                    <MenuItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              {/* Encryption Toggle */}
-              {hasSubscriptionGroup && (
-                <Box
-                  sx={{
-                    mb: 3,
-                    p: 2,
-                    borderRadius: 2,
-                    backgroundColor: (theme) =>
-                      theme.palette.mode === 'dark'
-                        ? 'rgba(29, 155, 240, 0.1)'
-                        : 'rgba(29, 155, 240, 0.05)',
-                    border: (theme) => `1px solid ${theme.palette.divider}`,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <LockIcon fontSize="small" color="primary" />
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Subscription Content
-                      </Typography>
-                      <Tooltip title="Publish this article encrypted for your subscription group members only">
-                        <InfoIcon fontSize="small" color="action" />
-                      </Tooltip>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={isEncrypted}
-                          onChange={(e) =>
-                            handleEncryptionToggle(e.target.checked)
-                          }
-                          color="primary"
-                        />
-                      }
-                      label={isEncrypted ? 'Encrypted' : 'Public'}
-                    />
-                  </Box>
-
-                  {/* Metadata Encryption Toggle - Only shown when content is encrypted */}
-                  {isEncrypted && (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1,
-                        p: 2,
-                        backgroundColor: 'background.paper',
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        mt: 2,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <Box
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                        >
-                          <Typography variant="body2" fontWeight={500}>
-                            Also encrypt title, subtitle & cover image
-                          </Typography>
-                          <Tooltip title="By default, title, subtitle and cover image remain public for discovery. Enable this to encrypt everything.">
-                            <InfoIcon fontSize="small" color="action" />
-                          </Tooltip>
-                        </Box>
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={encryptMetadata}
-                              onChange={(e) =>
-                                handleMetadataEncryptionToggle(e.target.checked)
-                              }
-                              color="primary"
-                              size="small"
-                            />
-                          }
-                          label=""
-                          sx={{ m: 0 }}
-                        />
-                      </Box>
-                      <Alert
-                        severity={encryptMetadata ? 'warning' : 'info'}
-                        sx={{ py: 0.5 }}
-                      >
-                        <Typography variant="caption">
-                          {encryptMetadata
-                            ? 'Article will be completely encrypted.'
-                            : 'Title, subtitle and cover will be visible to everyone for discovery. Only content will be encrypted.'}
-                        </Typography>
-                      </Alert>
-                    </Box>
-                  )}
-
-                  {isEncrypted && groupDetails && (
-                    <Box sx={{ mt: 1.5 }}>
-                      <Alert severity="info" sx={{ py: 0.5 }}>
-                        <Typography variant="caption">
-                          Only members of{' '}
-                          <strong>{groupDetails.groupName}</strong> (
-                          {groupDetails.memberCount || 0} subscribers) will be
-                          able to read this article
-                        </Typography>
-                      </Alert>
-                    </Box>
-                  )}
-                </Box>
-              )}
-
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                Tags (optional)
-              </Typography>
-              {tags.length > 0 && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                  {tags.map((tag, index) => (
-                    <Chip
-                      key={index}
-                      label={tag}
-                      onDelete={() =>
-                        setTags(tags.filter((_, i) => i !== index))
-                      }
-                      color="primary"
-                      variant="outlined"
-                    />
-                  ))}
-                </Box>
-              )}
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Add a tag and press Enter..."
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    const input = e.target as HTMLInputElement;
-                    if (input.value.trim()) {
-                      setTags([...tags, input.value.trim()]);
-                      input.value = '';
-                    }
-                  }
-                }}
-              />
             </Box>
 
             {/* Title */}
@@ -1378,30 +1420,17 @@ export const WritePage = () => {
                 </Typography>
               </Box>
             )}
-
-            {tags.length > 0 && (
-              <Box sx={{ mt: 4, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {tags.map((tag, index) => (
-                  <Chip key={index} label={tag} size="small" />
-                ))}
-              </Box>
-            )}
           </PreviewContainer>
         </Container>
       )}
 
       {/* Video Metadata Dialog */}
-      {console.log(
-        'WritePage Dialog state - open:',
-        showMetadataDialog,
-        'mediaFile:',
-        mediaFile
-      )}
       <VideoMetadataDialog
         open={showMetadataDialog}
         onClose={handleCloseMetadataDialog}
         onSave={handleSaveMetadata}
         videoFile={mediaFile?.file || null}
+        isEncrypted={isEncrypted}
       />
     </EditorContainer>
   );

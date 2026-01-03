@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { usePublish } from 'qapp-core';
+import { base64ToObject, usePublish } from 'qapp-core';
+
+declare const qortalRequest: (params: any) => Promise<any>;
 
 export interface AudioMetadataDocument {
   title: string;
@@ -21,11 +23,15 @@ export interface AudioWithMetadata {
   metadata: AudioMetadataDocument;
   metadataIdentifier: string;
   metadataName: string;
+  key?: string;
+  iv?: string;
+  mimeType?: string;
 }
 
 /**
  * Hook to fetch audio metadata documents and return audio URLs with metadata
  * @param audios - Array of audio references with metadata identifiers
+ * @param groupId - Optional group ID for encrypted audios
  * @returns Array of audios with fetched metadata
  */
 export function useAudioMetadata(
@@ -34,20 +40,29 @@ export function useAudioMetadata(
         identifier: string;
         name: string;
         service: string;
+        key?: string;
+        iv?: string;
+        mimeType?: string;
       }>
-    | undefined
+    | undefined,
+  groupId?: number
 ): { audiosWithMetadata: AudioWithMetadata[]; isLoading: boolean } {
   const [audiosWithMetadata, setAudiosWithMetadata] = useState<
     AudioWithMetadata[]
   >([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { fetchPublish: fetchPublishBase64 } = usePublish(3, 'BASE64');
   const { fetchPublish } = usePublish();
 
   // Create stable identifiers string for dependency array
   const audioIdentifiers = useMemo(
     () =>
-      audios?.map((a) => `${a.name}-${a.identifier}-${a.service}`).join('|') ||
-      '',
+      audios
+        ?.map(
+          (a) =>
+            `${a.name}-${a.identifier}-${a.service}-${a.key || ''}-${a.iv || ''}`
+        )
+        .join('|') || '',
     [audios]
   );
 
@@ -69,11 +84,23 @@ export function useAudioMetadata(
 
         for (const audio of audios) {
           try {
-            const response = await fetchPublish({
-              name: audio.name,
-              service: audio.service as any, // Should be 'DOCUMENT'
-              identifier: audio.identifier,
-            });
+            let response = null;
+
+            if (groupId) {
+              // For encrypted audios, fetch as base64
+              response = await fetchPublishBase64({
+                name: audio.name,
+                service: audio.service as any, // Should be 'DOCUMENT'
+                identifier: audio.identifier,
+              });
+            } else {
+              // For non-encrypted audios, fetch normally
+              response = await fetchPublish({
+                name: audio.name,
+                service: audio.service as any, // Should be 'DOCUMENT'
+                identifier: audio.identifier,
+              });
+            }
 
             if (
               isMounted &&
@@ -81,7 +108,34 @@ export function useAudioMetadata(
               response.hasResource &&
               response?.resource?.data
             ) {
-              const metadata = response.resource.data as AudioMetadataDocument;
+              let metadata: AudioMetadataDocument;
+
+              // Check if this is an encrypted audio metadata (has groupId)
+              if (groupId) {
+                try {
+                  // The response.resource.data is base64 encoded encrypted data for encrypted audios
+                  // We need to decrypt it first
+                  const encryptedBase64 = response.resource.data as string;
+                  const decrypted = await qortalRequest({
+                    action: 'DECRYPT_QORTAL_GROUP_DATA',
+                    groupId,
+                    base64: encryptedBase64,
+                  });
+
+                  // Parse the decrypted content
+                  metadata = await base64ToObject(decrypted);
+                } catch (decryptError) {
+                  console.error(
+                    'Failed to decrypt audio metadata:',
+                    decryptError
+                  );
+                  // Skip this audio if decryption fails
+                  continue;
+                }
+              } else {
+                // For non-encrypted audios, data is already parsed
+                metadata = response.resource.data as AudioMetadataDocument;
+              }
 
               // Construct the audio URL from the audioReference
               const audioUrl = `/arbitrary/${metadata.audioReference.service}/${metadata.audioReference.name}/${metadata.audioReference.identifier}`;
@@ -91,6 +145,9 @@ export function useAudioMetadata(
                 metadata,
                 metadataIdentifier: audio.identifier,
                 metadataName: audio.name,
+                ...(audio.key && { key: audio.key }),
+                ...(audio.iv && { iv: audio.iv }),
+                ...(audio.mimeType && { mimeType: audio.mimeType }),
               });
             } else {
               console.warn(
@@ -121,7 +178,7 @@ export function useAudioMetadata(
     return () => {
       isMounted = false;
     };
-  }, [audioIdentifiers, fetchPublish]);
+  }, [audioIdentifiers, groupId, fetchPublish, fetchPublishBase64]);
 
   return { audiosWithMetadata, isLoading };
 }

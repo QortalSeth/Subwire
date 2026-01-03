@@ -2,6 +2,7 @@
 export const SERVICE_DOCUMENT = 'DOCUMENT';
 export const SERVICE_VIDEO = 'VIDEO';
 export const SERVICE_AUDIO = 'AUDIO';
+export const SERVICE_FILE = 'FILE';
 
 // List identifiers
 export const LIST_ARTICLES_FEED = 'LIST_ARTICLES_FEED';

@@ -29,7 +29,6 @@ import { useNavigate } from 'react-router-dom';
 import { useGlobal, showError, showSuccess, usePublish } from 'qapp-core';
 import { ENTITY_ARTICLE, ENTITY_ROOT } from '../utils/articleQdn';
 import { formatDistanceToNow } from 'date-fns';
-import { getCategoryName } from '../constants/categories';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
 
 const PageHeader = styled(Box)(({ theme }) => ({
@@ -280,15 +279,6 @@ export const MyPublicationsPage = () => {
             sx={{ cursor: 'pointer' }}
             onClick={() => handleCardClick(article)}
           >
-            {articleData?.category !== undefined && (
-              <Chip
-                label={getCategoryName(articleData.category)}
-                size="small"
-                color="primary"
-                sx={{ mb: 1 }}
-              />
-            )}
-
             <Typography
               variant="h6"
               fontWeight={600}

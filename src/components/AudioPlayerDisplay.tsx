@@ -153,11 +153,17 @@ interface AudioPlayerDisplayProps {
     filename: string;
     duration?: number;
   };
+  encryptionKey?: string;
+  encryptionIv?: string;
+  mimeType?: string;
 }
 
 export function AudioPlayerDisplay({
   articleTitle,
   audioMetadata,
+  encryptionKey,
+  encryptionIv,
+  mimeType,
 }: AudioPlayerDisplayProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -231,6 +237,15 @@ export function AudioPlayerDisplay({
             onResourceStatus={onResourceStatus}
             shuffle={false}
             retryAttempts={3}
+            {...(encryptionKey &&
+              encryptionIv && {
+                encryption: {
+                  encryptionType: 'streamed-v1',
+                  iv: encryptionIv,
+                  key: encryptionKey,
+                  mimeType: mimeType || audioMetadata.mimeType || 'audio/mpeg',
+                },
+              })}
           />
         </Box>
       )}

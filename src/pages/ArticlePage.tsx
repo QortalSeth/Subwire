@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
   Avatar,
-  Chip,
   IconButton,
   Button,
   // TextField,
@@ -15,6 +14,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Skeleton,
 } from '@mui/material';
 import {
   Favorite,
@@ -41,13 +41,12 @@ import {
 import {
   restoreImagesForDisplay,
   deleteArticle,
-  ArticleVideo,
+  ArticleMedia,
   likeArticle,
   unlikeArticle,
 } from '../utils/articleQdn';
 import { formatDistanceToNow } from 'date-fns';
 import { marked } from 'marked';
-import { getCategoryName } from '../constants/categories';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
@@ -354,8 +353,8 @@ interface ArticleData {
     name: string;
     src: string;
   }>;
-  videos?: Array<
-    ArticleVideo & {
+  media?: Array<
+    ArticleMedia & {
       metadata?: {
         videoImage?: string;
         filename?: string;
@@ -400,7 +399,7 @@ export const ArticlePage = () => {
   // Decrypt encrypted article content if needed
   const { decryptedContent, isDecrypting, decryptionFailed, decryptionError } =
     useDecryptArticle(articleData || null);
-
+  console.log('decryptedContent', decryptedContent);
   // Use decrypted content if available, otherwise use original article data
   const displayArticleData = useMemo(() => {
     if (!articleData) return undefined;
@@ -411,7 +410,7 @@ export const ArticlePage = () => {
         ...articleData,
         content: decryptedContent.content || articleData.content,
         images: decryptedContent.images || articleData.images,
-        videos: decryptedContent.videos || articleData.videos,
+        media: decryptedContent.media || articleData.media,
         tags: decryptedContent.tags || articleData.tags,
         // For partial encryption, title/subtitle/coverImage might be public
         title: decryptedContent.title || articleData.title,
@@ -422,25 +421,28 @@ export const ArticlePage = () => {
 
     return articleData;
   }, [articleData, decryptedContent]);
-
+  console.log('displayArticleData', displayArticleData);
   // Separate video and audio files based on mimeType
   const videoFiles = useMemo(() => {
-    return displayArticleData?.videos?.filter(
+    console.log('displayArticleData?.media', displayArticleData?.media);
+    return displayArticleData?.media?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('video/')
     );
-  }, [displayArticleData?.videos]);
-
+  }, [displayArticleData?.media]);
+  console.log('videoFiles', videoFiles);
   const audioFiles = useMemo(() => {
-    return displayArticleData?.videos?.filter(
+    return displayArticleData?.media?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('audio/')
     );
-  }, [displayArticleData?.videos]);
+  }, [displayArticleData?.media]);
 
   // Fetch video metadata for episodes
-  const { videosWithMetadata } = useVideoMetadata(videoFiles);
-
+  const { videosWithMetadata, isLoading: isLoadingVideoMetadata } =
+    useVideoMetadata(videoFiles, articleData?.groupId);
+  console.log('videosWithMetadata', videosWithMetadata);
   // Fetch audio metadata for episodes
-  const { audiosWithMetadata } = useAudioMetadata(audioFiles);
+  const { audiosWithMetadata, isLoading: isLoadingAudioMetadata } =
+    useAudioMetadata(audioFiles, articleData?.groupId);
   console.log('articleData', articleData);
 
   // Check if current user is the author
@@ -721,6 +723,8 @@ export const ArticlePage = () => {
     );
   }
 
+  console.log('videosWithMetadata', videosWithMetadata);
+
   return (
     <>
       {/* Minimal header with back button */}
@@ -742,46 +746,12 @@ export const ArticlePage = () => {
         }}
       >
         <HeroContent>
-          {/* Category Chip */}
-          {displayArticleData.category !== undefined && (
-            <Chip
-              label={getCategoryName(displayArticleData.category)}
-              sx={{
-                mb: 2,
-                bgcolor: 'rgba(255, 255, 255, 0.2)',
-                backdropFilter: 'blur(10px)',
-                color: 'white',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                fontWeight: 600,
-              }}
-            />
-          )}
-
           {/* Title */}
           <ArticleTitle variant="h1">{displayArticleData.title}</ArticleTitle>
 
           {/* Subtitle */}
           {displayArticleData.subtitle && (
             <ArticleSubtitle>{displayArticleData.subtitle}</ArticleSubtitle>
-          )}
-
-          {/* Tags */}
-          {displayArticleData.tags && displayArticleData.tags.length > 0 && (
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-              {displayArticleData.tags.map((tag, index) => (
-                <Chip
-                  key={index}
-                  label={tag}
-                  size="small"
-                  sx={{
-                    bgcolor: 'rgba(255, 255, 255, 0.15)',
-                    backdropFilter: 'blur(10px)',
-                    color: 'white',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                  }}
-                />
-              ))}
-            </Box>
           )}
 
           {/* Author and Actions */}
@@ -897,42 +867,78 @@ export const ArticlePage = () => {
       <ContentSection>
         <ContentContainer maxWidth="lg">
           {/* Video Player - PROMINENT for episodes with videos */}
-          {videosWithMetadata && videosWithMetadata.length > 0 && (
+          {isLoadingVideoMetadata && videoFiles && videoFiles.length > 0 && (
             <VideoPlayerContainer>
-              <VideoPlayer
-                videoRef={videoRef}
-                poster={
-                  videosWithMetadata[0].metadata.videoImage
-                    ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
-                    : undefined
-                }
-                qortalVideoResource={{
-                  name: videosWithMetadata[0].metadata.videoReference.name,
-                  service: videosWithMetadata[0].metadata.videoReference
-                    .service as Service,
-                  identifier:
-                    videosWithMetadata[0].metadata.videoReference.identifier,
-                }}
-                autoPlay={false}
-                filename={videosWithMetadata[0].metadata.filename}
-                styling={{
-                  progressSlider: {
-                    thumbColor: 'white',
-                    railColor: '',
-                    trackColor: '#4285f4',
-                  },
-                }}
+              <Skeleton
+                variant="rectangular"
+                width="100%"
+                height={500}
+                sx={{ borderRadius: 2 }}
               />
             </VideoPlayerContainer>
           )}
+          {!isLoadingVideoMetadata &&
+            videosWithMetadata &&
+            videosWithMetadata.length > 0 && (
+              <VideoPlayerContainer>
+                <VideoPlayer
+                  videoRef={videoRef}
+                  poster={
+                    videosWithMetadata[0].metadata.videoImage
+                      ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
+                      : undefined
+                  }
+                  qortalVideoResource={{
+                    name: videosWithMetadata[0].metadata.videoReference.name,
+                    service: videosWithMetadata[0].metadata.videoReference
+                      .service as Service,
+                    identifier:
+                      videosWithMetadata[0].metadata.videoReference.identifier,
+                  }}
+                  autoPlay={false}
+                  filename={videosWithMetadata[0].metadata.filename}
+                  styling={{
+                    progressSlider: {
+                      thumbColor: 'white',
+                      railColor: '',
+                      trackColor: '#4285f4',
+                    },
+                  }}
+                  {...(videosWithMetadata[0].key &&
+                    videosWithMetadata[0].iv && {
+                      encryption: {
+                        encryptionType: 'streamed-v1',
+                        iv: videosWithMetadata[0].iv,
+                        key: videosWithMetadata[0].key,
+                        mimeType: videosWithMetadata[0].mimeType || 'video/mp4',
+                      },
+                    })}
+                />
+              </VideoPlayerContainer>
+            )}
 
           {/* Audio Player - PROMINENT for episodes with audio */}
-          {audiosWithMetadata && audiosWithMetadata.length > 0 && (
-            <AudioPlayerDisplay
-              articleTitle={displayArticleData.title}
-              audioMetadata={audiosWithMetadata[0].metadata}
-            />
+          {isLoadingAudioMetadata && audioFiles && audioFiles.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Skeleton
+                variant="rectangular"
+                width="100%"
+                height={120}
+                sx={{ borderRadius: 2 }}
+              />
+            </Box>
           )}
+          {!isLoadingAudioMetadata &&
+            audiosWithMetadata &&
+            audiosWithMetadata.length > 0 && (
+              <AudioPlayerDisplay
+                articleTitle={displayArticleData.title}
+                audioMetadata={audiosWithMetadata[0].metadata}
+                encryptionKey={audiosWithMetadata[0].key}
+                encryptionIv={audiosWithMetadata[0].iv}
+                mimeType={audiosWithMetadata[0].mimeType}
+              />
+            )}
 
           {/* Article Content */}
           <Container maxWidth="md" sx={{ py: 4 }}>

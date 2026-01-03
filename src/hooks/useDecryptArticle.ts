@@ -8,7 +8,7 @@ interface ArticleData {
   content?: string;
   coverImage?: any;
   images?: any[];
-  videos?: any[];
+  media?: any[];
   tags?: string[];
   groupId?: number;
   encryptedContent?: string;
@@ -18,7 +18,7 @@ interface ArticleData {
 interface DecryptedArticleContent {
   content?: string;
   images?: any[];
-  videos?: any[];
+  media?: any[];
   tags?: string[];
   title?: string;
   subtitle?: string;

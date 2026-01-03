@@ -12,9 +12,6 @@ import {
   Tab,
   Chip,
   CircularProgress,
-  FormControl,
-  Select,
-  MenuItem,
   Alert,
 } from '@mui/material';
 import {
@@ -27,7 +24,6 @@ import {
   Code,
   Image as ImageIcon,
   Publish,
-  Save as SaveIcon,
   Undo,
   Redo,
   Close as CloseIcon,
@@ -51,17 +47,15 @@ import {
   publishArticle,
   restoreImagesForDisplay,
   MediaAttachment,
-  ArticleVideo,
+  ArticleMedia,
   VideoMetadata,
 } from '../utils/articleQdn';
 import { VideoMetadataDialog } from '../components/VideoMetadataDialog';
 import { AudioPlayerDisplay } from '../components/AudioPlayerDisplay';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
-import { CATEGORIES } from '../constants/categories';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
-import { saveDraft, deleteDraft, generateDraftId } from '../utils/draftStorage';
-import { fileToBase64 } from '../utils/mapHelpers';
+import { deleteDraft, generateDraftId } from '../utils/draftStorage';
 
 const EditorContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
@@ -259,8 +253,9 @@ interface ArticleData {
     name: string;
     src: string;
   }>;
-  videos?: ArticleVideo[];
+  media?: ArticleMedia[];
   type?: 'essay' | 'episode';
+  groupId?: number; // For encrypted articles
 }
 
 export const EditArticlePage = () => {
@@ -275,8 +270,6 @@ export const EditArticlePage = () => {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [category, setCategory] = useState<number>(1);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverImagePreview, setCoverImagePreview] = useState<string>('');
   const [existingCoverImage, setExistingCoverImage] = useState<string>('');
@@ -287,9 +280,6 @@ export const EditArticlePage = () => {
   const [uploadedImages, setUploadedImages] = useState<Map<string, string>>(
     new Map()
   );
-  const [uploadedImageFiles, setUploadedImageFiles] = useState<
-    Map<string, File>
-  >(new Map());
   const [history, setHistory] = useState<string[]>(['']);
   const [historyIndex, setHistoryIndex] = useState(0);
   const typingTimeoutRef = useRef<number | null>(null);
@@ -298,7 +288,7 @@ export const EditArticlePage = () => {
   const [articleType, setArticleType] = useState<'essay' | 'episode'>('essay');
 
   // Video/audio state for episodes
-  const [existingVideos, setExistingVideos] = useState<ArticleVideo[]>([]);
+  const [existingMedia, setExistingMedia] = useState<ArticleMedia[]>([]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<'audio' | 'video' | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(
@@ -306,10 +296,8 @@ export const EditArticlePage = () => {
   );
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
 
-  // Draft state
+  // Draft state - only used for cleanup after successful update
   const [draftId, setDraftId] = useState<string>('');
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [lastSavedTime, setLastSavedTime] = useState<number | null>(null);
 
   // Fetch the article using usePublish
   const { resource, isLoading, hasResource } = usePublish(2, 'JSON', {
@@ -322,20 +310,26 @@ export const EditArticlePage = () => {
 
   // Filter video and audio files from existing videos
   const videoFiles = useMemo(() => {
-    return existingVideos?.filter(
+    return existingMedia?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('video/')
     );
-  }, [existingVideos]);
+  }, [existingMedia]);
 
   const audioFiles = useMemo(() => {
-    return existingVideos?.filter(
+    return existingMedia?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('audio/')
     );
-  }, [existingVideos]);
+  }, [existingMedia]);
 
   // Fetch metadata for preview
-  const { videosWithMetadata } = useVideoMetadata(videoFiles);
-  const { audiosWithMetadata } = useAudioMetadata(audioFiles);
+  const { videosWithMetadata } = useVideoMetadata(
+    videoFiles,
+    articleData?.groupId
+  );
+  const { audiosWithMetadata } = useAudioMetadata(
+    audioFiles,
+    articleData?.groupId
+  );
 
   // Check if user is the author
   const isAuthor = auth?.name === name;
@@ -345,8 +339,6 @@ export const EditArticlePage = () => {
     if (articleData) {
       setTitle(articleData.title || '');
       setSubtitle(articleData.subtitle || '');
-      setCategory(articleData.category || 1);
-      setTags(articleData.tags || []);
       setArticleType(articleData.type || 'essay');
 
       // Keep content with perennial-image:// references for editing
@@ -369,12 +361,12 @@ export const EditArticlePage = () => {
         setCoverImagePreview(coverUrl);
       }
 
-      // Set existing videos for episodes
-      if (articleData.videos && articleData.videos.length > 0) {
-        setExistingVideos(articleData.videos);
+      // Set existing media for episodes
+      if (articleData.media && articleData.media.length > 0) {
+        setExistingMedia(articleData.media);
       }
 
-      // Generate draft ID for this edit
+      // Generate draft ID for cleanup after update
       if (auth?.name && identifier) {
         setDraftId(
           generateDraftId(articleData.type || 'essay', true, identifier)
@@ -382,68 +374,6 @@ export const EditArticlePage = () => {
       }
     }
   }, [articleData, auth?.name, identifier]);
-
-  // Manual save draft function
-  const handleSaveDraft = async () => {
-    if (!auth?.name || !draftId || !isAuthor) {
-      showError('Please log in to save drafts');
-      return;
-    }
-
-    setIsSavingDraft(true);
-    try {
-      // Convert cover image to base64 if present
-      let coverImageData: string | undefined;
-      let coverImageFilename: string | undefined;
-      let coverImageMimeType: string | undefined;
-
-      if (coverImage) {
-        coverImageData = await fileToBase64(coverImage);
-        coverImageFilename = coverImage.name;
-        coverImageMimeType = coverImage.type;
-      }
-
-      // Convert uploaded images to base64
-      const uploadedImagesData: Record<
-        string,
-        { data: string; filename: string; mimeType: string }
-      > = {};
-      for (const [name, file] of uploadedImageFiles.entries()) {
-        const data = await fileToBase64(file);
-        uploadedImagesData[name] = {
-          data,
-          filename: file.name,
-          mimeType: file.type,
-        };
-      }
-
-      await saveDraft(auth.name || '', {
-        id: draftId,
-        userName: auth.name || '',
-        type: articleType,
-        title,
-        subtitle,
-        content,
-        tags,
-        category,
-        coverImagePreview,
-        coverImageData,
-        coverImageFilename,
-        coverImageMimeType,
-        uploadedImages: uploadedImagesData,
-        createdAt: lastSavedTime || Date.now(),
-        isEdit: true,
-        originalIdentifier: identifier || '',
-      });
-      setLastSavedTime(Date.now());
-      showSuccess('Draft saved successfully');
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      showError('Failed to save draft');
-    } finally {
-      setIsSavingDraft(false);
-    }
-  };
 
   const handleUpdate = async () => {
     if (!isAuthor) {
@@ -489,7 +419,7 @@ export const EditArticlePage = () => {
           });
         }
         // Keep existing videos if no new media uploaded
-        else if (existingVideos.length > 0) {
+        else if (existingMedia.length > 0) {
           // Don't need to include existing videos in media array
           // They'll be preserved by the update
         }
@@ -500,8 +430,6 @@ export const EditArticlePage = () => {
         title,
         subtitle,
         content,
-        tags,
-        category,
         coverImage: coverImage || undefined,
         media: media.length > 0 ? media : undefined,
         identifierOperations,
@@ -514,13 +442,22 @@ export const EditArticlePage = () => {
         existingIdentifier: identifier, // Pass the identifier to update existing article
         existingCoverImage:
           !coverImage && existingCoverImage ? existingCoverImage : undefined,
-        existingVideos:
-          articleType === 'episode' && !mediaFile ? existingVideos : undefined,
+        existingMedia:
+          articleType === 'episode' && !mediaFile ? existingMedia : undefined,
       });
 
       // Delete draft after successful update
+      // Don't let draft deletion errors prevent showing success
       if (draftId && auth.name) {
-        await deleteDraft(auth.name, draftId);
+        try {
+          await deleteDraft(auth.name, draftId);
+        } catch (error) {
+          console.error(
+            'Error deleting draft (article was updated successfully):',
+            error
+          );
+          // Don't show error to user - article was updated successfully
+        }
       }
 
       dismissToast(loadingId);
@@ -576,7 +513,6 @@ export const EditArticlePage = () => {
       const imageName = file.name;
 
       setUploadedImages((prev) => new Map(prev).set(imageName, imageUrl));
-      setUploadedImageFiles((prev) => new Map(prev).set(imageName, file));
       applyFormatting(`![${imageName}](${imageUrl})`, '');
       event.target.value = '';
     }
@@ -809,17 +745,6 @@ export const EditArticlePage = () => {
             </Tabs>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <PublishButton
-                variant="outlined"
-                startIcon={
-                  isSavingDraft ? <CircularProgress size={20} /> : <SaveIcon />
-                }
-                onClick={handleSaveDraft}
-                disabled={isSavingDraft || !isAuthor}
-                sx={{ my: 1 }}
-              >
-                {isSavingDraft ? 'Saving...' : 'Save Draft'}
-              </PublishButton>
-              <PublishButton
                 variant="contained"
                 startIcon={
                   isPublishing ? <CircularProgress size={20} /> : <Publish />
@@ -961,13 +886,11 @@ export const EditArticlePage = () => {
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                   Media{' '}
-                  {existingVideos.length > 0
-                    ? ''
-                    : '(optional - keep existing)'}
+                  {existingMedia.length > 0 ? '' : '(optional - keep existing)'}
                 </Typography>
 
                 {/* Show existing video */}
-                {existingVideos.length > 0 && !mediaFile && (
+                {existingMedia.length > 0 && !mediaFile && (
                   <Paper
                     sx={{ p: 2, mb: 2, border: 1, borderColor: 'divider' }}
                   >
@@ -980,7 +903,7 @@ export const EditArticlePage = () => {
                           Existing Media File
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {existingVideos[0].identifier}
+                          {existingMedia[0].identifier}
                         </Typography>
                       </Box>
                       <Chip label="Saved" color="success" size="small" />
@@ -1049,7 +972,7 @@ export const EditArticlePage = () => {
                 >
                   {mediaFile
                     ? 'Replace Media File'
-                    : existingVideos.length > 0
+                    : existingMedia.length > 0
                       ? 'Replace Media File'
                       : 'Upload Media File'}
                   <input
@@ -1061,58 +984,6 @@ export const EditArticlePage = () => {
                 </Button>
               </Box>
             )}
-
-            {/* Category & Tags */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                Category *
-              </Typography>
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <Select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as number)}
-                >
-                  {CATEGORIES.map((cat) => (
-                    <MenuItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                Tags (optional)
-              </Typography>
-              {tags.length > 0 && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                  {tags.map((tag, index) => (
-                    <Chip
-                      key={index}
-                      label={tag}
-                      onDelete={() =>
-                        setTags(tags.filter((_, i) => i !== index))
-                      }
-                      color="primary"
-                      variant="outlined"
-                    />
-                  ))}
-                </Box>
-              )}
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Add a tag and press Enter..."
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    const input = e.target as HTMLInputElement;
-                    if (input.value.trim()) {
-                      setTags([...tags, input.value.trim()]);
-                      input.value = '';
-                    }
-                  }
-                }}
-              />
-            </Box>
 
             {/* Title */}
             <TitleField
@@ -1285,14 +1156,6 @@ export const EditArticlePage = () => {
                 <Typography variant="body2">
                   Start editing to see a preview
                 </Typography>
-              </Box>
-            )}
-
-            {tags.length > 0 && (
-              <Box sx={{ mt: 4, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {tags.map((tag, index) => (
-                  <Chip key={index} label={tag} size="small" />
-                ))}
               </Box>
             )}
           </PreviewContainer>

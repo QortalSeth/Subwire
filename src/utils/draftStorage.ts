@@ -14,8 +14,6 @@ export interface ArticleDraft {
   title: string;
   subtitle: string;
   content: string;
-  tags: string[];
-  category: number;
   coverImagePreview?: string; // Data URL for preview display
   coverImageData?: string; // Base64 encoded cover image (without data URL prefix)
   coverImageFilename?: string; // Original filename

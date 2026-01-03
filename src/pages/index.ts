@@ -3,7 +3,6 @@ export { DiscoverPage } from './DiscoverPage';
 export { PublicationPage } from './PublicationPage';
 export { ArticlePage } from './ArticlePage';
 export { WritePage } from './WritePage';
-export { WriteEpisodePage } from './WriteEpisodePage';
 export { PostTypeSelectionPage } from './PostTypeSelectionPage';
 export { EditArticlePage } from './EditArticlePage';
 export { MyPublicationsPage } from './MyPublicationsPage';

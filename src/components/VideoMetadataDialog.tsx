@@ -249,6 +249,7 @@ interface VideoMetadataDialogProps {
   onClose: (saved: boolean) => void;
   onSave: (metadata: VideoMetadata) => void;
   videoFile: File | null;
+  isEncrypted?: boolean; // If true, only show cover image selection
 }
 
 export const VideoMetadataDialog = ({
@@ -256,6 +257,7 @@ export const VideoMetadataDialog = ({
   onClose,
   onSave,
   videoFile,
+  isEncrypted = false,
 }: VideoMetadataDialogProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -370,7 +372,9 @@ export const VideoMetadataDialog = ({
   };
 
   const handleConfirm = () => {
-    if (!title.trim() || !selectedCategory) {
+    // For encrypted videos, only videoImage is required
+    // For non-encrypted videos, title and category are required
+    if (!isEncrypted && (!title.trim() || !selectedCategory)) {
       return;
     }
 
@@ -386,15 +390,30 @@ export const VideoMetadataDialog = ({
       videoImage = extractedFrames[selectedThumbnailIndex];
     }
 
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      duration,
-      videoImage,
-      extracts: extractedFrames,
-      category: selectedCategory.id,
-      subcategory: selectedSubCategory?.id,
-    });
+    // For encrypted videos, auto-generate minimal metadata
+    if (isEncrypted) {
+      const nameWithoutExt = videoFile?.name.replace(/\.[^/.]+$/, '') || '';
+      onSave({
+        title: nameWithoutExt,
+        description: '',
+        duration,
+        videoImage,
+        extracts: extractedFrames,
+        category: 1, // Default category
+        subcategory: undefined,
+      });
+    } else {
+      // For non-encrypted videos, use full metadata
+      onSave({
+        title: title.trim(),
+        description: description.trim(),
+        duration,
+        videoImage,
+        extracts: extractedFrames,
+        category: selectedCategory.id,
+        subcategory: selectedSubCategory?.id,
+      });
+    }
 
     // Reset form state
     setTitle('');
@@ -431,7 +450,7 @@ export const VideoMetadataDialog = ({
     onClose(false);
   };
 
-  const isFormValid = title.trim().length > 0 && selectedCategory !== null;
+  const isFormValid = isEncrypted ? true : (title.trim().length > 0 && selectedCategory !== null);
 
   // Determine the current poster image for the video preview
   const videoPoster = (() => {
@@ -451,135 +470,143 @@ export const VideoMetadataDialog = ({
     <StyledDialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
       <StyledDialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            component="img"
-            src={qtubeLogoImg}
-            alt="Q-Tube"
-            sx={{
-              height: 32,
-              width: 32,
-              objectFit: 'contain',
-            }}
-          />
+          {!isEncrypted && (
+            <Box
+              component="img"
+              src={qtubeLogoImg}
+              alt="Q-Tube"
+              sx={{
+                height: 32,
+                width: 32,
+                objectFit: 'contain',
+              }}
+            />
+          )}
           <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
-            Q-Tube video data
+            {isEncrypted ? 'Video Cover Image' : 'Q-Tube video data'}
           </Typography>
         </Box>
       </StyledDialogTitle>
       <StyledDialogContent>
-        {videoPreview && (
+        {/* Video preview hidden as per user request */}
+        {/* {videoPreview && (
           <VideoPreviewContainer>
             <VideoPreview src={videoPreview} poster={videoPoster} controls />
           </VideoPreviewContainer>
-        )}
+        )} */}
 
-        <Box>
-          <TextField
-            label="Video Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            fullWidth
-            required
-            placeholder="Enter a title for your video"
-            variant="outlined"
-            inputProps={{ maxLength: 100 }}
-            helperText={`${title.length}/100 characters`}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'primary.main',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderWidth: '2px',
-                },
-              },
-            }}
-          />
-        </Box>
+        {/* Only show title, description, and category fields for non-encrypted videos */}
+        {!isEncrypted && (
+          <>
+            <Box>
+              <TextField
+                label="Video Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                fullWidth
+                required
+                placeholder="Enter a title for your video"
+                variant="outlined"
+                inputProps={{ maxLength: 100 }}
+                helperText={`${title.length}/100 characters`}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderWidth: '2px',
+                    },
+                  },
+                }}
+              />
+            </Box>
 
-        <Box>
-          <TextField
-            label="Description (Optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            fullWidth
-            multiline
-            rows={3}
-            placeholder="Describe your video content"
-            variant="outlined"
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'primary.main',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderWidth: '2px',
-                },
-              },
-            }}
-          />
-        </Box>
+            <Box>
+              <TextField
+                label="Description (Optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                fullWidth
+                multiline
+                rows={3}
+                placeholder="Describe your video content"
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderWidth: '2px',
+                    },
+                  },
+                }}
+              />
+            </Box>
 
-        <FormControl fullWidth required>
-          <InputLabel id="video-category-label">Category *</InputLabel>
-          <Select
-            labelId="video-category-label"
-            value={selectedCategory?.id?.toString() || ''}
-            onChange={handleCategoryChange}
-            required
-            input={<OutlinedInput label="Category *" />}
-            sx={{
-              borderRadius: 2,
-              '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'primary.main',
-              },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderWidth: '2px',
-              },
-            }}
-          >
-            {categories.map((category) => (
-              <MenuItem key={category.id} value={category.id}>
-                {category.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel id="video-category-label">Category *</InputLabel>
+              <Select
+                labelId="video-category-label"
+                value={selectedCategory?.id?.toString() || ''}
+                onChange={handleCategoryChange}
+                required
+                input={<OutlinedInput label="Category *" />}
+                sx={{
+                  borderRadius: 2,
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: 'primary.main',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderWidth: '2px',
+                  },
+                }}
+              >
+                {categories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {category.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-        {selectedCategory && subCategories[selectedCategory.id] && (
-          <FormControl fullWidth>
-            <InputLabel id="video-subcategory-label">Subcategory</InputLabel>
-            <Select
-              labelId="video-subcategory-label"
-              value={selectedSubCategory?.id?.toString() || ''}
-              onChange={handleSubCategoryChange}
-              input={<OutlinedInput label="Subcategory" />}
-              sx={{
-                borderRadius: 2,
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'primary.main',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderWidth: '2px',
-                },
-              }}
-            >
-              {subCategories[selectedCategory.id].map((subcategory) => (
-                <MenuItem key={subcategory.id} value={subcategory.id}>
-                  {subcategory.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+            {selectedCategory && subCategories[selectedCategory.id] && (
+              <FormControl fullWidth>
+                <InputLabel id="video-subcategory-label">Subcategory</InputLabel>
+                <Select
+                  labelId="video-subcategory-label"
+                  value={selectedSubCategory?.id?.toString() || ''}
+                  onChange={handleSubCategoryChange}
+                  input={<OutlinedInput label="Subcategory" />}
+                  sx={{
+                    borderRadius: 2,
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderWidth: '2px',
+                    },
+                  }}
+                >
+                  {subCategories[selectedCategory.id].map((subcategory) => (
+                    <MenuItem key={subcategory.id} value={subcategory.id}>
+                      {subcategory.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
-        {duration && (
-          <InfoText>
-            Duration: {Math.floor(duration / 60)}:
-            {(duration % 60).toString().padStart(2, '0')}
-          </InfoText>
+            {duration && (
+              <InfoText>
+                Duration: {Math.floor(duration / 60)}:
+                {(duration % 60).toString().padStart(2, '0')}
+              </InfoText>
+            )}
+          </>
         )}
 
         <ThumbnailSection>
