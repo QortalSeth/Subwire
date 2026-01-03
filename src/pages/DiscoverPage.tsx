@@ -4,19 +4,19 @@ import {
   Container,
   Typography,
   Box,
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
-  Avatar,
-  Chip,
   TextField,
   InputAdornment,
   Tabs,
   Tab,
+  ToggleButton,
+  ToggleButtonGroup,
   Button,
+  Avatar,
+  CircularProgress,
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
+import ArticleIcon from '@mui/icons-material/Article';
+import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate } from 'react-router-dom';
 import {
   useGlobal,
@@ -25,12 +25,22 @@ import {
   ResourceListDisplay,
   LoaderListStatus,
 } from 'qapp-core';
+import { useAtom, useAtomValue } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
+import {
+  groupOwnerPrimaryNamesAtom,
+  isLoadingGroupOwnerNamesAtom,
+  memberGroupsAtom,
+} from '../state/global/profile';
 import { ArticleCard } from '../components/ArticleCard';
 import { LoaderState, LoaderItem } from '../components/LoaderState';
+import { useFetchProfile } from '../hooks/useFetchProfile';
 import {
   ENTITY_ROOT,
   ENTITY_ARTICLE,
   ENTITY_EPISODE,
+  GROUP_PRIVATE_ARTICLE,
+  GROUP_PRIVATE_EPISODE,
 } from '../utils/articleQdn';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
 
@@ -55,125 +65,202 @@ const SearchField = styled(TextField)(({ theme }) => ({
   },
 }));
 
-const PublicationCard = styled(Card)(({ theme }) => ({
-  height: '100%',
+const SearchSection = styled(Box)(() => ({
   display: 'flex',
-  flexDirection: 'column',
-  cursor: 'pointer',
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  border: `1px solid ${theme.palette.divider}`,
-  '&:hover': {
-    transform: 'translateY(-6px)',
-    boxShadow:
-      theme.palette.mode === 'light'
-        ? '0 12px 24px rgba(0, 0, 0, 0.12)'
-        : '0 12px 24px rgba(0, 0, 0, 0.6)',
-    borderColor: theme.palette.primary.main,
-  },
+  alignItems: 'center',
+  gap: 16,
+  marginBottom: 16,
 }));
 
-const PublicationAvatar = styled(Avatar)(({ theme }) => ({
-  width: 80,
-  height: 80,
-  margin: theme.spacing(3, 'auto', 2),
-  border: `3px solid ${theme.palette.background.paper}`,
-}));
-
-const SubscribeButton = styled(Button)(({ theme }) => ({
-  borderRadius: 10,
+const SearchButton = styled(Button)(() => ({
+  minWidth: '100px',
+  height: '40px',
+  borderRadius: '20px',
   textTransform: 'none',
   fontWeight: 600,
 }));
 
-// Mock data
-const publications = [
-  {
-    id: 1,
-    name: 'Tech Forward',
-    description:
-      'Exploring the intersection of technology, society, and innovation',
-    author: 'Sarah Johnson',
-    subscribers: '12.5K',
-    category: 'Technology',
-    image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400',
-    posts: 145,
+const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
+  '& .MuiToggleButton-root': {
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(1, 2),
+    textTransform: 'none',
+    fontWeight: 500,
+    gap: theme.spacing(1),
+    '&.Mui-selected': {
+      backgroundColor: theme.palette.primary.main,
+      color: '#fff',
+      '&:hover': {
+        backgroundColor: theme.palette.primary.dark,
+      },
+    },
+    '&:hover': {
+      backgroundColor:
+        theme.palette.mode === 'dark'
+          ? 'rgba(29, 155, 240, 0.1)'
+          : 'rgba(29, 155, 240, 0.08)',
+    },
   },
-  {
-    id: 2,
-    name: "Writer's Corner",
-    description:
-      'Tips, tricks, and insights for aspiring and professional writers',
-    author: 'Michael Chen',
-    subscribers: '8.3K',
-    category: 'Writing',
-    image: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=400',
-    posts: 89,
-  },
-  {
-    id: 3,
-    name: 'Growth Hacks',
-    description: 'Strategic insights for scaling your business and career',
-    author: 'Emma Davis',
-    subscribers: '15.2K',
-    category: 'Business',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400',
-    posts: 203,
-  },
-  {
-    id: 4,
-    name: 'Design Matters',
-    description: 'Exploring design thinking, UX, and creative processes',
-    author: 'Alex Rivera',
-    subscribers: '9.7K',
-    category: 'Design',
-    image: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400',
-    posts: 124,
-  },
-  {
-    id: 5,
-    name: 'Mindful Living',
-    description: 'Wellness, mindfulness, and living with intention',
-    author: 'Olivia Martinez',
-    subscribers: '11.1K',
-    category: 'Lifestyle',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
-    posts: 167,
-  },
-  {
-    id: 6,
-    name: 'Code & Coffee',
-    description: 'Programming tutorials, best practices, and developer life',
-    author: 'James Wilson',
-    subscribers: '18.9K',
-    category: 'Technology',
-    image: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400',
-    posts: 312,
-  },
-];
+}));
 
-const categories = [
-  'All',
-  'Technology',
-  'Writing',
-  'Business',
-  'Design',
-  'Lifestyle',
-];
+const UserResultItem = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: theme.spacing(2),
+  borderRadius: '12px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  border: `1px solid ${theme.palette.divider}`,
+  backgroundColor:
+    theme.palette.mode === 'dark'
+      ? 'rgba(255, 255, 255, 0.05)'
+      : 'rgba(0, 0, 0, 0.02)',
+  '&:hover': {
+    backgroundColor:
+      theme.palette.mode === 'dark'
+        ? 'rgba(29, 155, 240, 0.1)'
+        : 'rgba(29, 155, 240, 0.05)',
+    borderColor: theme.palette.primary.main,
+    transform: 'translateX(4px)',
+  },
+}));
+
+const UserInfo = styled(Box)({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+});
+
+const EmptyState = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: theme.spacing(6),
+  gap: theme.spacing(2),
+  color: theme.palette.text.secondary,
+}));
+
+const tabs = ['All', 'Only public', 'Subscriptions'];
+
+type SearchType = 'publications' | 'names';
+
+// Persistent atom for selected tab - remembers user's preference
+const selectedTabAtom = atomWithStorage<number>(
+  'discover_page_selected_tab',
+  0 // Default to "All" tab
+);
+
+// User Result Card Component
+interface UserResultCardProps {
+  userName: string;
+  currentUserName?: string;
+  onClick: () => void;
+}
+
+function UserResultCard({
+  userName,
+  currentUserName,
+  onClick,
+}: UserResultCardProps) {
+  const { profile } = useFetchProfile(userName);
+
+  return (
+    <UserResultItem onClick={onClick}>
+      <UserInfo>
+        <Avatar
+          src={
+            profile?.avatar
+              ? `/arbitrary/THUMBNAIL/${userName}/qortal_avatar?apiVersion=2`
+              : undefined
+          }
+          sx={{ width: 48, height: 48 }}
+        >
+          {userName[0].toUpperCase()}
+        </Avatar>
+        <Box>
+          <Typography variant="body1" fontWeight={700}>
+            {userName}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            @{userName}
+          </Typography>
+          {profile?.bio && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mt: 0.5,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {profile.bio}
+            </Typography>
+          )}
+        </Box>
+      </UserInfo>
+      {currentUserName === userName && (
+        <Typography
+          variant="caption"
+          sx={{
+            backgroundColor: (theme) => theme.palette.primary.main,
+            color: '#fff',
+            padding: '4px 12px',
+            borderRadius: '12px',
+            fontWeight: 600,
+          }}
+        >
+          You
+        </Typography>
+      )}
+    </UserResultItem>
+  );
+}
 
 export const DiscoverPage = () => {
   const navigate = useNavigate();
-  const { identifierOperations } = useGlobal();
+  const { identifierOperations, auth } = useGlobal();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchType, setSearchType] = useState<SearchType>('publications');
+  const [searchNames, setSearchNames] = useState<string[] | null>(null);
+  const [userSearchResults, setUserSearchResults] = useState<
+    Array<{ name: string }>
+  >([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [selectedTab, setSelectedTab] = useAtom(selectedTabAtom);
   const [searchPrefix, setSearchPrefix] = useState<string | null>(null);
   const [episodeSearchPrefix, setEpisodeSearchPrefix] = useState<string | null>(
+    null
+  );
+  const [groupArticleSearchPrefixes, setGroupArticleSearchPrefixes] = useState<
+    string[] | null
+  >(null);
+  const [groupEpisodeSearchPrefixes, setGroupEpisodeSearchPrefixes] = useState<
+    string[] | null
+  >(null);
+
+  // Access group data from atoms
+  const isLoadingGroupOwnerNames = useAtomValue(isLoadingGroupOwnerNamesAtom);
+  const groupOwnerNames = useAtomValue(groupOwnerPrimaryNamesAtom);
+  const memberGroups = useAtomValue(memberGroupsAtom);
+  const [primaryNamesGroup, setPrimaryNamesGroup] = useState<string[] | null>(
     null
   );
 
   // Build the search prefix for articles and episodes
   useEffect(() => {
+    if (isLoadingGroupOwnerNames) return;
+
     const buildPrefix = async () => {
       if (!identifierOperations) return;
+      if (memberGroups === null) return;
 
       try {
         const prefix = await identifierOperations.buildSearchPrefix(
@@ -187,13 +274,49 @@ export const DiscoverPage = () => {
           ENTITY_ROOT
         );
         setEpisodeSearchPrefix(episodePrefix);
+
+        setPrimaryNamesGroup(groupOwnerNames);
+
+        // Build search prefixes for group articles and episodes
+        const groupIds = Array.from(memberGroups.keys());
+        if (groupIds.length > 0) {
+          const groupArticlePrefixes = await Promise.all(
+            groupIds.map(async (groupId) => {
+              return await identifierOperations.buildSearchPrefix(
+                groupId.toString(),
+                '',
+                GROUP_PRIVATE_ARTICLE
+              );
+            })
+          );
+          setGroupArticleSearchPrefixes(groupArticlePrefixes);
+
+          const groupEpisodePrefixes = await Promise.all(
+            groupIds.map(async (groupId) => {
+              return await identifierOperations.buildSearchPrefix(
+                groupId.toString(),
+                '',
+                GROUP_PRIVATE_EPISODE
+              );
+            })
+          );
+          setGroupEpisodeSearchPrefixes(groupEpisodePrefixes);
+        } else {
+          setGroupArticleSearchPrefixes([]);
+          setGroupEpisodeSearchPrefixes([]);
+        }
       } catch (error) {
         console.error('Failed to build search prefix:', error);
       }
     };
 
     buildPrefix();
-  }, [identifierOperations]);
+  }, [
+    identifierOperations,
+    isLoadingGroupOwnerNames,
+    memberGroups,
+    groupOwnerNames,
+  ]);
 
   const loaderItem = useCallback(() => {
     return <LoaderItem />;
@@ -220,38 +343,223 @@ export const DiscoverPage = () => {
   );
 
   const search = useMemo((): QortalSearchParams => {
-    return {
+    // For "Subscriptions" tab, use a placeholder that won't match public content
+    // The actual subscription content comes from secondaryDataSources
+    if (selectedTab === 2) {
+      return {
+        service: SERVICE_DOCUMENT,
+        limit: 20,
+        reverse: true,
+        identifier: 'placeholder-no-public',
+      };
+    }
+
+    // Base search for public articles
+    const baseSearch: QortalSearchParams = {
       service: SERVICE_DOCUMENT,
       limit: 20,
       reverse: true,
       identifier: searchPrefix || '',
       prefix: true,
     };
-  }, [searchPrefix]);
+
+    // Add query for publication search
+    if (searchQuery) {
+      baseSearch.query = searchQuery;
+    }
+
+    // Add names filter for Qortal name search
+    if (searchNames && searchNames.length > 0) {
+      baseSearch.names = searchNames;
+      baseSearch.exactMatchNames = true;
+    }
+
+    return baseSearch;
+  }, [searchPrefix, selectedTab, searchQuery, searchNames]);
 
   const secondaryDataSources = useMemo((): any[] | undefined => {
     if (!episodeSearchPrefix) return undefined;
 
-    return [
-      {
-        params: {
-          service: 'DOCUMENT',
-          identifier: episodeSearchPrefix,
-          reverse: true,
-          prefix: true,
-        },
-      },
-    ];
-  }, [episodeSearchPrefix]);
+    // Tab 0: All - includes public episodes + subscription content
+    // Tab 1: Only public - only public episodes, no subscription content
+    // Tab 2: Subscriptions - only subscription content, no public episodes
 
-  const filteredPublications = publications.filter((pub) => {
-    const matchesSearch =
-      pub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pub.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === 0 || pub.category === categories[selectedCategory];
-    return matchesSearch && matchesCategory;
-  });
+    let dataSources: any[] = [];
+
+    // Add public episodes for "All" and "Only public" tabs
+    if (selectedTab === 0 || selectedTab === 1) {
+      const episodeParams: any = {
+        service: 'DOCUMENT',
+        identifier: episodeSearchPrefix,
+        reverse: true,
+        prefix: true,
+      };
+
+      // Add query for publication search
+      if (searchQuery) {
+        episodeParams.query = searchQuery;
+      }
+
+      // Add names filter for Qortal name search
+      if (searchNames && searchNames.length > 0) {
+        episodeParams.names = searchNames;
+        episodeParams.exactMatchNames = true;
+      }
+
+      dataSources.push({
+        params: episodeParams,
+      });
+    }
+
+    // Add group articles and episodes for "All" and "Subscriptions" tabs
+    if (
+      (selectedTab === 0 || selectedTab === 2) &&
+      primaryNamesGroup &&
+      primaryNamesGroup.length > 0 &&
+      groupArticleSearchPrefixes &&
+      groupArticleSearchPrefixes.length > 0 &&
+      groupEpisodeSearchPrefixes &&
+      groupEpisodeSearchPrefixes.length > 0
+    ) {
+      // Filter group owner names if searching by name
+      const filteredGroupOwners =
+        searchNames && searchNames.length > 0
+          ? primaryNamesGroup.filter((name) => searchNames.includes(name))
+          : primaryNamesGroup;
+
+      // Only add group sources if we have names to filter by
+      if (filteredGroupOwners.length > 0) {
+        // Add group articles
+        dataSources.push(
+          ...groupArticleSearchPrefixes.map((prefix) => {
+            const params: any = {
+              service: 'DOCUMENT' as const,
+              identifier: prefix,
+              names: filteredGroupOwners,
+              exactMatchNames: true,
+              reverse: true,
+              prefix: true,
+            };
+
+            // Add query for publication search
+            if (searchQuery) {
+              params.query = searchQuery;
+            }
+
+            return { params };
+          })
+        );
+
+        // Add group episodes
+        dataSources.push(
+          ...groupEpisodeSearchPrefixes.map((prefix) => {
+            const params: any = {
+              service: 'DOCUMENT' as const,
+              identifier: prefix,
+              names: filteredGroupOwners,
+              exactMatchNames: true,
+              reverse: true,
+              prefix: true,
+            };
+
+            // Add query for publication search
+            if (searchQuery) {
+              params.query = searchQuery;
+            }
+
+            return { params };
+          })
+        );
+      }
+    }
+
+    return dataSources.length > 0 ? dataSources : undefined;
+  }, [
+    episodeSearchPrefix,
+    primaryNamesGroup,
+    groupArticleSearchPrefixes,
+    groupEpisodeSearchPrefixes,
+    selectedTab,
+    searchQuery,
+    searchNames,
+  ]);
+
+  // Get tab title for display
+  const getTabTitle = () => {
+    switch (selectedTab) {
+      case 0:
+        return 'All Articles';
+      case 1:
+        return 'Public Articles';
+      case 2:
+        return 'Subscription Articles';
+      default:
+        return 'Articles';
+    }
+  };
+
+  // Handle search execution
+  const executeSearch = useCallback(() => {
+    if (!searchInput.trim()) {
+      setSearchQuery('');
+      setSearchNames(null);
+      setUserSearchResults([]);
+      return;
+    }
+
+    const trimmedQuery = searchInput.trim();
+
+    if (searchType === 'publications') {
+      // For publication search, use the query parameter
+      setSearchQuery(trimmedQuery);
+      setSearchNames(null);
+      setUserSearchResults([]);
+    } else {
+      // For name search, fetch and display user results
+      setIsSearchingUsers(true);
+      qortalRequest({
+        action: 'SEARCH_NAMES',
+        query: trimmedQuery,
+        limit: 20,
+      })
+        .then((response: any) => {
+          const users: Array<{ name: string }> = [];
+          if (response && Array.isArray(response)) {
+            response.forEach((nameData: any) => {
+              const name = nameData.name || nameData;
+              if (name) {
+                users.push({ name });
+              }
+            });
+          }
+          setUserSearchResults(users);
+          setSearchQuery(''); // Clear publication query when searching names
+          setSearchNames(null); // Don't filter articles by names
+        })
+        .catch((error) => {
+          console.error('Error searching names:', error);
+          setUserSearchResults([]);
+        })
+        .finally(() => {
+          setIsSearchingUsers(false);
+        });
+    }
+  }, [searchInput, searchType]);
+
+  const handleSearchKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (event.key === 'Enter') {
+      executeSearch();
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchQuery('');
+    setSearchNames(null);
+    setUserSearchResults([]);
+  };
 
   return (
     <>
@@ -259,62 +567,119 @@ export const DiscoverPage = () => {
       <PageHeader>
         <Container maxWidth="lg">
           <Typography variant="h3" fontWeight={700} gutterBottom>
-            Discover Publications
+            {searchType === 'names'
+              ? 'Discover Authors'
+              : 'Discover Publications'}
           </Typography>
           <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
-            Find newsletters and writers that inspire you
+            {searchType === 'names'
+              ? 'Find writers and creators on Qortal'
+              : 'Find publications and writers that inspire you'}
           </Typography>
 
-          <SearchField
-            fullWidth
-            placeholder="Search publications..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
+          <SearchSection>
+            <SearchField
+              fullWidth
+              placeholder={
+                searchType === 'publications'
+                  ? 'Search publications...'
+                  : 'Search by Qortal name...'
+              }
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <SearchButton
+              variant="contained"
+              onClick={executeSearch}
+              disabled={!searchInput.trim()}
+            >
+              Search
+            </SearchButton>
+            {(searchQuery || userSearchResults.length > 0) && (
+              <Button
+                variant="outlined"
+                onClick={handleClearSearch}
+                sx={{
+                  minWidth: '100px',
+                  height: '40px',
+                  borderRadius: '20px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </SearchSection>
+
+          <StyledToggleButtonGroup
+            value={searchType}
+            exclusive
+            onChange={(_, newType) => {
+              if (newType) {
+                setSearchType(newType);
+                handleClearSearch();
+              }
             }}
-          />
+            fullWidth
+            sx={{ maxWidth: 600 }}
+          >
+            <ToggleButton value="publications">
+              <ArticleIcon fontSize="small" />
+              Publications
+            </ToggleButton>
+            <ToggleButton value="names">
+              <PersonIcon fontSize="small" />
+              Qortal Names
+            </ToggleButton>
+          </StyledToggleButtonGroup>
         </Container>
       </PageHeader>
 
-      {/* Category Tabs */}
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          borderBottom: 1,
-          borderColor: 'divider',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Tabs
-            value={selectedCategory}
-            onChange={(_, newValue) => setSelectedCategory(newValue)}
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            {categories.map((category) => (
-              <Tab
-                key={category}
-                label={category}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 500,
-                  fontSize: '1rem',
-                }}
-              />
-            ))}
-          </Tabs>
-        </Container>
-      </Box>
+      {/* Tab Navigation - Only show for publications search */}
+      {searchType === 'publications' && (
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Container maxWidth="lg">
+            <Tabs
+              value={selectedTab}
+              onChange={(_, newValue) => setSelectedTab(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
+              {tabs.map((tab) => (
+                <Tab
+                  key={tab}
+                  label={tab}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    fontSize: '1rem',
+                  }}
+                />
+              ))}
+            </Tabs>
+          </Container>
+        </Box>
+      )}
 
-      {/* Publications Grid */}
+      {/* Content */}
       <Container maxWidth="lg" sx={{ py: 6 }}>
-        {selectedCategory === 0 ? (
-          /* All Articles - Real data from blockchain */
+        {searchType === 'names' ? (
+          /* User Search Results */
           <>
             <Typography
               variant="h6"
@@ -322,7 +687,70 @@ export const DiscoverPage = () => {
               gutterBottom
               sx={{ mb: 4 }}
             >
-              All Articles
+              {userSearchResults.length > 0
+                ? `${userSearchResults.length} ${userSearchResults.length === 1 ? 'User' : 'Users'} Found`
+                : 'Search Results'}
+            </Typography>
+
+            {isSearchingUsers ? (
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: 4,
+                }}
+              >
+                <CircularProgress />
+              </Box>
+            ) : !searchInput ? (
+              <EmptyState>
+                <PersonIcon sx={{ fontSize: 64, opacity: 0.3 }} />
+                <Typography variant="h6">Search for users</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Find people on Qortal
+                </Typography>
+              </EmptyState>
+            ) : userSearchResults.length === 0 ? (
+              <EmptyState>
+                <SearchIcon sx={{ fontSize: 64, opacity: 0.3 }} />
+                <Typography variant="h6">No users found</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Try searching for a different name
+                </Typography>
+              </EmptyState>
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  maxWidth: 900,
+                  margin: '0 auto',
+                  width: '100%',
+                }}
+              >
+                {userSearchResults.map((user) => (
+                  <UserResultCard
+                    key={user.name}
+                    userName={user.name}
+                    currentUserName={auth?.name || undefined}
+                    onClick={() => navigate(`/author/${user.name}`)}
+                  />
+                ))}
+              </Box>
+            )}
+          </>
+        ) : (
+          /* Publication Search Results */
+          <>
+            <Typography
+              variant="h6"
+              fontWeight={600}
+              gutterBottom
+              sx={{ mb: 4 }}
+            >
+              {getTabTitle()}
             </Typography>
 
             {!searchPrefix || !episodeSearchPrefix ? (
@@ -347,21 +775,26 @@ export const DiscoverPage = () => {
                   width: '100%',
                 }}
               >
+                {/* @ts-expect-error - ResourceListDisplay type issue from qapp-core library */}
                 <ResourceListDisplay
                   styles={{
                     gap: 20,
                   }}
                   retryAttempts={3}
-                  listName="ALL_ARTICLES"
+                  listName={`${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`}
                   direction="VERTICAL"
                   disableVirtualization
                   disablePagination
                   returnType="JSON"
                   loaderList={loaderList}
-                  entityParams={{
-                    entityType: ENTITY_ARTICLE,
-                    parentId: ENTITY_ROOT,
-                  }}
+                  entityParams={
+                    selectedTab === 2
+                      ? undefined // Subscriptions tab uses only secondaryDataSources
+                      : {
+                          entityType: ENTITY_ARTICLE,
+                          parentId: ENTITY_ROOT,
+                        }
+                  }
                   search={search}
                   listItem={listItem}
                   loaderItem={loaderItem}
@@ -370,111 +803,6 @@ export const DiscoverPage = () => {
                   }}
                   secondaryDataSources={secondaryDataSources}
                 />
-              </Box>
-            )}
-          </>
-        ) : (
-          /* Other categories - Mock data for now */
-          <>
-            <Typography variant="h6" fontWeight={600} gutterBottom>
-              {filteredPublications.length}{' '}
-              {filteredPublications.length === 1
-                ? 'Publication'
-                : 'Publications'}
-            </Typography>
-
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              {filteredPublications.map((publication) => (
-                <Grid item xs={12} sm={6} md={4} key={publication.id}>
-                  <PublicationCard
-                    onClick={() => navigate(`/publication/${publication.id}`)}
-                  >
-                    <CardMedia
-                      component="img"
-                      height="140"
-                      image={publication.image}
-                      alt={publication.name}
-                      sx={{ objectFit: 'cover' }}
-                    />
-                    <CardContent sx={{ textAlign: 'center', flexGrow: 1 }}>
-                      <PublicationAvatar>
-                        {publication.name[0]}
-                      </PublicationAvatar>
-
-                      <Typography variant="h6" fontWeight={600} gutterBottom>
-                        {publication.name}
-                      </Typography>
-
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ mb: 2, minHeight: 40 }}
-                      >
-                        {publication.description}
-                      </Typography>
-
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          gap: 1,
-                          justifyContent: 'center',
-                          mb: 2,
-                        }}
-                      >
-                        <Chip
-                          label={publication.category}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                        />
-                      </Box>
-
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-around',
-                          mb: 2,
-                          color: 'text.secondary',
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="body2" fontWeight={600}>
-                            {publication.subscribers}
-                          </Typography>
-                          <Typography variant="caption">Subscribers</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" fontWeight={600}>
-                            {publication.posts}
-                          </Typography>
-                          <Typography variant="caption">Posts</Typography>
-                        </Box>
-                      </Box>
-
-                      <SubscribeButton
-                        variant="contained"
-                        fullWidth
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle subscribe
-                        }}
-                      >
-                        Subscribe
-                      </SubscribeButton>
-                    </CardContent>
-                  </PublicationCard>
-                </Grid>
-              ))}
-            </Grid>
-
-            {filteredPublications.length === 0 && (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <Typography variant="h6" color="text.secondary">
-                  No publications found
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Try adjusting your search or filters
-                </Typography>
               </Box>
             )}
           </>

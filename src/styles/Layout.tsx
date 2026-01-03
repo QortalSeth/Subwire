@@ -5,6 +5,7 @@ import { useIframe } from '../hooks/useIframeListener';
 import { useInitializePreferredName } from '../hooks/useInitializePreferredName';
 import { useInitializeProfile } from '../hooks/useInitializeProfile';
 import { useInitializeOwnedGroups } from '../hooks/useInitializeOwnedGroups';
+import { useGroupOwnerNames } from '../hooks/useGroupOwnerNames';
 import { useGlobal } from 'qapp-core';
 
 const LoadingContainer = styled(Box)(({ theme }) => ({
@@ -27,6 +28,9 @@ const Layout = () => {
 
   // Initialize owned groups for subscription feature
   useInitializeOwnedGroups();
+
+  // Initialize member groups and group owner names for subscription content
+  useGroupOwnerNames();
 
   // Show loading indicator while authentication is in progress
   if (auth?.isLoadingUser) {

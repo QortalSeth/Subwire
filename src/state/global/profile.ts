@@ -56,3 +56,10 @@ export const encryptMetadataPreferenceAtom = atomWithStorage<Record<string, bool
   {}
 );
 
+// Atom to store primary names of group owners that the user is a member of
+export const groupOwnerPrimaryNamesAtom = atom<string[]>([]);
+export const isLoadingGroupOwnerNamesAtom = atom<boolean>(false);
+
+// Atom to store groups the user is a member of (for looking up group names by ID)
+// Null means not yet loaded, Map means loaded (can be empty)
+export const memberGroupsAtom = atom<Map<number, string> | null>(null);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
 import {
   AppBar,
@@ -23,6 +23,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   Check as CheckIcon,
   Star as StarIcon,
+  Explore as ExploreIcon,
 } from '@mui/icons-material';
 import { useGlobal, showError, showSuccess, useAuth } from 'qapp-core';
 import { useAtom, useSetAtom } from 'jotai';
@@ -157,6 +158,7 @@ const PrimaryBadge = styled(Chip)(({ theme }) => ({
 
 export const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { auth } = useGlobal();
   const { switchName } = useAuth();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -275,21 +277,36 @@ export const Header = () => {
     }
   };
 
+  // Check if we're on the discover page
+  const isOnDiscoverPage = location.pathname === '/discover';
+
   return (
     <StyledAppBar position="sticky">
       <StyledToolbar>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Logo to="/">Perennial</Logo>
-          <SearchContainer>
-            <SearchIcon sx={{ color: 'text.secondary' }} />
-            <StyledInputBase placeholder="Search publications..." />
-          </SearchContainer>
         </Box>
 
         <NavButtons>
           {!auth?.address ? (
             <>
               {/* Show authenticate button when not authenticated at all */}
+              {!isOnDiscoverPage && (
+                <Button
+                  variant="outlined"
+                  startIcon={<ExploreIcon />}
+                  onClick={() => navigate('/discover')}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                    Explore
+                  </Box>
+                </Button>
+              )}
               <SignInButton
                 onClick={handleAuthenticate}
                 disabled={isAuthenticating || auth?.isLoadingUser}
@@ -324,6 +341,22 @@ export const Header = () => {
           ) : (
             <>
               {/* User is authenticated - show write button and profile */}
+              {!isOnDiscoverPage && (
+                <Button
+                  variant="outlined"
+                  startIcon={<ExploreIcon />}
+                  onClick={() => navigate('/discover')}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                    Explore
+                  </Box>
+                </Button>
+              )}
               <Tooltip
                 title={!auth?.name ? 'You need a Qortal name to publish' : ''}
                 arrow
