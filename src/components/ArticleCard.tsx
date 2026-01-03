@@ -26,6 +26,7 @@ const StyledCard = styled(Card)(({ theme }) => ({
   height: 200,
   minHeight: 200,
   maxHeight: 200,
+  boxSizing: 'border-box',
   '&:hover': {
     transform: 'translateY(-2px)',
     boxShadow:
@@ -34,26 +35,29 @@ const StyledCard = styled(Card)(({ theme }) => ({
         : '0 8px 16px rgba(0, 0, 0, 0.5)',
     borderColor: theme.palette.primary.main,
   },
-  // Mobile: vertical layout
-  [theme.breakpoints.down('md')]: {
+  // Mobile: vertical layout (only on true mobile < 600px)
+  [theme.breakpoints.down('sm')]: {
     flexDirection: 'column',
     height: 'auto',
     minHeight: 'unset',
     maxHeight: 'unset',
+    width: '100%',
+    maxWidth: '100%',
   },
 }));
 
 const CoverImageContainer = styled(Box)(({ theme }) => ({
   width: 160, // Smaller width to give more space to content
   minWidth: 160,
+  maxWidth: '100%',
   height: 200,
   maxHeight: 200,
   overflow: 'hidden',
   position: 'relative',
   backgroundColor: 'rgba(0, 0, 0, 0.05)',
   flexShrink: 0,
-  // Mobile: full width
-  [theme.breakpoints.down('md')]: {
+  // Mobile: full width (only on true mobile < 600px)
+  [theme.breakpoints.down('sm')]: {
     width: '100%',
     minWidth: 'unset',
     height: 240,
@@ -68,6 +72,11 @@ const ContentContainer = styled(Box)(({ theme }) => ({
   flexDirection: 'column',
   minWidth: 0, // Allow text truncation
   justifyContent: 'space-between',
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  },
 }));
 
 const AuthorSection = styled(Box)(({ theme }) => ({

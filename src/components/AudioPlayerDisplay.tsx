@@ -39,6 +39,13 @@ const AudioPlayerContainer = styled(Box)(({ theme }) => ({
   position: 'relative',
   zIndex: 3,
   backgroundColor: theme.palette.background.paper,
+  [theme.breakpoints.down('sm')]: {
+    marginTop: '-24px',
+    borderRadius: '12px',
+    marginLeft: '16px',
+    marginRight: '16px',
+    width: 'calc(100% - 32px)',
+  },
 }));
 
 const AudioContent = styled(Box)(({ theme }) => ({
@@ -49,22 +56,30 @@ const AudioContent = styled(Box)(({ theme }) => ({
   gap: theme.spacing(3),
   [theme.breakpoints.down('sm')]: {
     flexDirection: 'column',
-    padding: theme.spacing(3, 2),
+    padding: theme.spacing(2.5, 2),
+    gap: theme.spacing(2),
   },
 }));
 
-const ControlsSection = styled(Box)({
+const ControlsSection = styled(Box)(({ theme }) => ({
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
   gap: 16,
-});
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+  },
+}));
 
-const PlaybackButtons = styled(Box)({
+const PlaybackButtons = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: 12,
-});
+  [theme.breakpoints.down('sm')]: {
+    justifyContent: 'center',
+    width: '100%',
+  },
+}));
 
 const ProgressSection = styled(Box)({
   flex: 1,
@@ -82,12 +97,17 @@ const TimeDisplay = styled(Typography)(({ theme }) => ({
   textAlign: 'center',
 }));
 
-const VolumeSection = styled(Box)({
+const VolumeSection = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   minWidth: 140,
-});
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+    minWidth: 'unset',
+    maxWidth: 300,
+  },
+}));
 
 const LoadingContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -107,22 +127,31 @@ const InitialStateContainer = styled(Box)(({ theme }) => ({
   gap: theme.spacing(3),
   [theme.breakpoints.down('sm')]: {
     flexDirection: 'column',
-    padding: theme.spacing(3, 2),
+    padding: theme.spacing(2.5, 2),
+    gap: theme.spacing(2),
   },
 }));
 
-const AudioInfo = styled(Box)({
+const AudioInfo = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: 16,
   flex: 1,
-});
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+    justifyContent: 'center',
+  },
+}));
 
-const AudioDetails = styled(Box)({
+const AudioDetails = styled(Box)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-});
+  [theme.breakpoints.down('sm')]: {
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+}));
 
 const LoadingText = styled(Typography)(({ theme }) => ({
   color: theme.palette.text.secondary,

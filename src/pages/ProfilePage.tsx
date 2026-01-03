@@ -47,6 +47,10 @@ const MinimalHeader = styled(Box)(({ theme }) => ({
   top: theme.spacing(2),
   left: theme.spacing(2),
   zIndex: 100,
+  [theme.breakpoints.down('sm')]: {
+    top: theme.spacing(1.5),
+    left: theme.spacing(1.5),
+  },
 }));
 
 const HomeButton = styled(IconButton)(({ theme }) => ({
@@ -64,6 +68,13 @@ const HomeButton = styled(IconButton)(({ theme }) => ({
         : '0 4px 12px rgba(0, 0, 0, 0.6)',
   },
   transition: 'all 0.2s ease',
+  [theme.breakpoints.down('sm')]: {
+    width: 40,
+    height: 40,
+    '& .MuiSvgIcon-root': {
+      fontSize: 20,
+    },
+  },
 }));
 
 // Hero section with author info
@@ -91,14 +102,22 @@ const HeroSection = styled(Box)(({ theme }) => ({
       'radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 60%)',
     pointerEvents: 'none',
   },
+  [theme.breakpoints.down('sm')]: {
+    minHeight: 320,
+    paddingTop: theme.spacing(6),
+    paddingBottom: theme.spacing(6),
+  },
 }));
 
-const HeroContent = styled(Box)({
+const HeroContent = styled(Box)(({ theme }) => ({
   position: 'relative',
   zIndex: 1,
   textAlign: 'center',
   color: 'white',
-});
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(0, 2),
+  },
+}));
 
 const StyledAvatar = styled(Avatar)(({ theme }) => ({
   width: 120,
@@ -109,6 +128,13 @@ const StyledAvatar = styled(Avatar)(({ theme }) => ({
   fontSize: '3rem',
   fontWeight: 700,
   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+  [theme.breakpoints.down('sm')]: {
+    width: 90,
+    height: 90,
+    fontSize: '2.25rem',
+    marginBottom: theme.spacing(2),
+    border: '3px solid rgba(255, 255, 255, 0.3)',
+  },
 }));
 
 const ContentSection = styled(Box)(({ theme }) => ({
@@ -127,6 +153,13 @@ const ContentContainer = styled(Container)(({ theme }) => ({
     theme.palette.mode === 'light'
       ? '0 -4px 24px rgba(0, 0, 0, 0.08)'
       : '0 -4px 24px rgba(0, 0, 0, 0.4)',
+  [theme.breakpoints.down('sm')]: {
+    paddingTop: theme.spacing(3),
+    paddingBottom: theme.spacing(6),
+    paddingLeft: '16px !important',
+    paddingRight: '16px !important',
+    borderRadius: '16px 16px 0 0',
+  },
 }));
 
 const EmptyState = styled(Box)(({ theme }) => ({
@@ -147,6 +180,10 @@ const SubscriberChip = styled(Chip)(({ theme }) => ({
   height: 'auto',
   '& .MuiChip-icon': {
     color: theme.palette.primary.main,
+  },
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '0.8rem',
+    padding: theme.spacing(0.4, 0.8),
   },
 }));
 
@@ -619,6 +656,7 @@ export const ProfilePage = () => {
               maxWidth: 600,
               margin: '0 auto',
               px: 2,
+              fontSize: { xs: '1rem', sm: '1.25rem' },
             }}
           >
             {profile?.bio || ''}
@@ -644,24 +682,37 @@ export const ProfilePage = () => {
           )}
 
           <Box
-            sx={{ display: 'flex', gap: 2, mt: 3, justifyContent: 'center' }}
+            sx={{
+              display: 'flex',
+              gap: { xs: 1.5, sm: 2 },
+              mt: 3,
+              mb: { xs: 3, sm: 0 },
+              justifyContent: 'center',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: 'center',
+              px: { xs: 3, sm: 0 },
+              maxWidth: { xs: 320, sm: 'none' },
+              mx: 'auto',
+            }}
           >
             {isOwnProfile && (
               <>
                 <Button
                   variant="contained"
                   onClick={() => navigate('/write')}
+                  fullWidth={true}
                   sx={{
                     bgcolor: 'rgba(255, 255, 255, 0.2)',
                     backdropFilter: 'blur(10px)',
                     color: 'white',
                     borderRadius: 2,
-                    px: 4,
-                    py: 1.5,
-                    fontSize: '1rem',
+                    px: { xs: 3, sm: 4 },
+                    py: { xs: 1.25, sm: 1.5 },
+                    fontSize: { xs: '0.875rem', sm: '1rem' },
                     textTransform: 'none',
                     fontWeight: 600,
                     border: '1px solid rgba(255, 255, 255, 0.3)',
+                    maxWidth: { xs: '100%', sm: 'none' },
                     '&:hover': {
                       bgcolor: 'rgba(255, 255, 255, 0.3)',
                     },
@@ -669,62 +720,108 @@ export const ProfilePage = () => {
                 >
                   New Article
                 </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setIsEditModalOpen(true)}
-                  startIcon={<EditIcon />}
+                <Box
                   sx={{
-                    bgcolor: 'rgba(255, 255, 255, 0.2)',
-                    backdropFilter: 'blur(10px)',
-                    color: 'white',
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1.5,
-                    fontSize: '1rem',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                    },
+                    display: 'flex',
+                    gap: 1.5,
+                    width: { xs: '100%', sm: 'auto' },
+                    alignItems: 'center',
                   }}
                 >
-                  Edit Profile
-                </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setIsEditModalOpen(true)}
+                    startIcon={
+                      <EditIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
+                    }
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      color: 'white',
+                      borderRadius: 2,
+                      px: { xs: 2.5, sm: 3 },
+                      py: { xs: 1.25, sm: 1.5 },
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      flex: { xs: 1, sm: 'none' },
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.3)',
+                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                      },
+                      '& .MuiButton-startIcon': {
+                        marginRight: { xs: 0.5, sm: 1 },
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                      Edit Profile
+                    </Box>
+                    <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+                      Edit
+                    </Box>
+                  </Button>
+                  <IconButton
+                    onClick={handleShare}
+                    sx={{
+                      color: 'white',
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      width: { xs: 42, sm: 48 },
+                      height: { xs: 42, sm: 48 },
+                      flexShrink: 0,
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                    }}
+                  >
+                    <ShareIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+                  </IconButton>
+                </Box>
               </>
             )}
-            <IconButton
-              onClick={handleShare}
-              sx={{
-                color: 'white',
-                bgcolor: 'rgba(255, 255, 255, 0.2)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.3)',
-                },
-              }}
-            >
-              <ShareIcon />
-            </IconButton>
+            {!isOwnProfile && (
+              <IconButton
+                onClick={handleShare}
+                sx={{
+                  color: 'white',
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  width: { xs: 42, sm: 48 },
+                  height: { xs: 42, sm: 48 },
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                }}
+              >
+                <ShareIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+              </IconButton>
+            )}
           </Box>
         </HeroContent>
       </HeroSection>
 
       {/* Content section */}
       <ContentSection>
-        <ContentContainer maxWidth="lg">
+        <ContentContainer maxWidth="lg" disableGutters={true}>
           {/* Tabs for different content types */}
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
             <Tabs
               value={currentTab}
               onChange={(_, newValue) => setCurrentTab(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
               sx={{
                 '& .MuiTab-root': {
                   textTransform: 'none',
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
                   fontWeight: 600,
+                  minWidth: { xs: 'auto', sm: 120 },
+                  px: { xs: 2, sm: 3 },
                 },
               }}
             >

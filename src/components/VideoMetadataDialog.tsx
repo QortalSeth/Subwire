@@ -35,6 +35,12 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
         : '0 24px 48px rgba(0, 0, 0, 0.15)',
     border: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.paper,
+    [theme.breakpoints.down('sm')]: {
+      margin: theme.spacing(2),
+      maxWidth: 'calc(100vw - 32px)',
+      width: 'calc(100vw - 32px)',
+      borderRadius: theme.spacing(2),
+    },
   },
   '& .MuiBackdrop-root': {
     backgroundColor:

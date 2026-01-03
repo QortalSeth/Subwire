@@ -84,6 +84,9 @@ const EditorHeader = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(1.5, 2),
+  },
 }));
 
 const EditorToolbar = styled(Paper)(({ theme }) => ({
@@ -95,7 +98,7 @@ const EditorToolbar = styled(Paper)(({ theme }) => ({
   display: 'flex',
   gap: theme.spacing(0.5),
   alignItems: 'center',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
   borderRadius: 10,
   border: `1px solid ${theme.palette.divider}`,
   backgroundColor: theme.palette.background.paper,
@@ -105,6 +108,24 @@ const EditorToolbar = styled(Paper)(({ theme }) => ({
       ? '0 4px 20px rgba(0, 0, 0, 0.15)'
       : '0 4px 20px rgba(0, 0, 0, 0.6)',
   maxWidth: 'calc(100vw - 32px)',
+  [theme.breakpoints.down('sm')]: {
+    bottom: theme.spacing(2),
+    padding: theme.spacing(0.75, 1),
+    gap: theme.spacing(0.25),
+    maxWidth: 'calc(100vw - 16px)',
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    '&::-webkit-scrollbar': {
+      height: 4,
+    },
+    '&::-webkit-scrollbar-track': {
+      background: 'transparent',
+    },
+    '&::-webkit-scrollbar-thumb': {
+      background: theme.palette.divider,
+      borderRadius: 2,
+    },
+  },
 }));
 
 const TitleField = styled(TextField)(({ theme }) => ({
@@ -121,6 +142,11 @@ const TitleField = styled(TextField)(({ theme }) => ({
       fontSize: '2rem',
     },
   },
+  [theme.breakpoints.down('sm')]: {
+    '& .MuiInputBase-root': {
+      fontSize: '1.75rem',
+    },
+  },
 }));
 
 const SubtitleField = styled(TextField)(({ theme }) => ({
@@ -131,15 +157,25 @@ const SubtitleField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-notchedOutline': {
     border: 'none',
   },
+  [theme.breakpoints.down('sm')]: {
+    '& .MuiInputBase-root': {
+      fontSize: '1.1rem',
+    },
+  },
 }));
 
-const ContentField = styled(TextField)(() => ({
+const ContentField = styled(TextField)(({ theme }) => ({
   '& .MuiInputBase-root': {
     fontSize: '1.125rem',
     lineHeight: 1.8,
   },
   '& .MuiOutlinedInput-notchedOutline': {
     border: 'none',
+  },
+  [theme.breakpoints.down('sm')]: {
+    '& .MuiInputBase-root': {
+      fontSize: '1rem',
+    },
   },
 }));
 
@@ -163,6 +199,10 @@ const CoverImageContainer = styled(Paper)(({ theme }) => ({
     borderColor: theme.palette.primary.main,
     backgroundColor: theme.palette.action.hover,
     transform: 'translateY(-2px)',
+  },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(3),
+    marginBottom: theme.spacing(2),
   },
 }));
 
@@ -206,6 +246,10 @@ const MediaUploadZone = styled(Paper)(({ theme }) => ({
     backgroundColor: theme.palette.action.hover,
     transform: 'translateY(-2px)',
   },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(4),
+    marginBottom: theme.spacing(2),
+  },
 }));
 
 const MediaPreview = styled(Box)(({ theme }) => ({
@@ -242,6 +286,18 @@ const PreviewContainer = styled(Box)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius,
     margin: theme.spacing(2, 0),
   },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2, 0),
+    '& h1': {
+      fontSize: '1.75rem',
+    },
+    '& h2': {
+      fontSize: '1.1rem',
+    },
+    '& p': {
+      fontSize: '1rem',
+    },
+  },
 }));
 
 const VideoPreviewStyled = styled('video')(({ theme }) => ({
@@ -258,6 +314,10 @@ const ToolbarDivider = styled(Box)(({ theme }) => ({
   height: 24,
   backgroundColor: theme.palette.divider,
   margin: theme.spacing(0, 1),
+  [theme.breakpoints.down('sm')]: {
+    margin: theme.spacing(0, 0.5),
+    height: 20,
+  },
 }));
 
 // Helper function to get file extension
@@ -881,7 +941,13 @@ export const WritePage = () => {
     <EditorContainer>
       {/* Authentication Warning */}
       {!auth?.name && (
-        <Alert severity="warning" sx={{ m: 2 }}>
+        <Alert
+          severity="warning"
+          sx={{
+            m: { xs: 1.5, sm: 2 },
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+          }}
+        >
           You need to authenticate with a Qortal name to publish articles.
           Please log in to continue.
         </Alert>
@@ -899,8 +965,8 @@ export const WritePage = () => {
       {/* Tabs */}
       <Box
         sx={(theme) => ({
-          position: 'sticky',
-          top: 64,
+          position: { xs: 'relative', sm: 'sticky' },
+          top: { xs: 0, sm: 64 },
           zIndex: 10,
           borderBottom: 1,
           borderColor: 'divider',
@@ -917,6 +983,9 @@ export const WritePage = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 0 },
+              py: { xs: 1, sm: 0 },
             }}
           >
             <Tabs
@@ -932,7 +1001,14 @@ export const WritePage = () => {
                 sx={{ textTransform: 'none', fontSize: '1rem' }}
               />
             </Tabs>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                gap: { xs: 1, sm: 2 },
+                width: { xs: '100%', sm: 'auto' },
+                px: { xs: 2, sm: 0 },
+              }}
+            >
               <PublishButton
                 variant="outlined"
                 startIcon={
@@ -940,7 +1016,12 @@ export const WritePage = () => {
                 }
                 onClick={handleSaveDraft}
                 disabled={isSavingDraft || !auth?.name}
-                sx={{ my: 1 }}
+                sx={{
+                  my: 1,
+                  flex: { xs: 1, sm: 'none' },
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  px: { xs: 1.5, sm: 3 },
+                }}
               >
                 {isSavingDraft ? 'Saving...' : 'Save Draft'}
               </PublishButton>
@@ -951,7 +1032,12 @@ export const WritePage = () => {
                 }
                 onClick={handlePublish}
                 disabled={isPublishing || !auth?.name}
-                sx={{ my: 1 }}
+                sx={{
+                  my: 1,
+                  flex: { xs: 1, sm: 'none' },
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  px: { xs: 1.5, sm: 3 },
+                }}
               >
                 {isPublishing ? 'Publishing...' : 'Publish'}
               </PublishButton>
@@ -962,7 +1048,14 @@ export const WritePage = () => {
 
       {/* Editor Content */}
       {currentTab === 0 && (
-        <Container maxWidth="lg" sx={{ py: 4, pb: 12 }}>
+        <Container
+          maxWidth="lg"
+          sx={{
+            py: { xs: 2, sm: 4 },
+            pb: { xs: 10, sm: 12 },
+            px: { xs: 2, sm: 3 },
+          }}
+        >
           <Box sx={{ maxWidth: 800, margin: '0 auto' }}>
             {/* Toolbar */}
             <EditorToolbar elevation={0}>
@@ -971,32 +1064,45 @@ export const WritePage = () => {
                 title="Undo (Ctrl+Z)"
                 onClick={handleUndo}
                 disabled={historyIndex === 0}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <Undo />
+                <Undo sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
               <IconButton
                 size="small"
                 title="Redo (Ctrl+Y)"
                 onClick={handleRedo}
                 disabled={historyIndex === history.length - 1}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <Redo />
+                <Redo sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
 
               <ToolbarDivider />
 
-              <IconButton size="small" title="Bold" onClick={handleBold}>
-                <FormatBold />
+              <IconButton
+                size="small"
+                title="Bold"
+                onClick={handleBold}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
+              >
+                <FormatBold sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
-              <IconButton size="small" title="Italic" onClick={handleItalic}>
-                <FormatItalic />
+              <IconButton
+                size="small"
+                title="Italic"
+                onClick={handleItalic}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
+              >
+                <FormatItalic sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
               <IconButton
                 size="small"
                 title="Underline"
                 onClick={handleUnderline}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <FormatUnderlined />
+                <FormatUnderlined sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
 
               <ToolbarDivider />
@@ -1005,24 +1111,36 @@ export const WritePage = () => {
                 size="small"
                 title="Bullet List"
                 onClick={handleBulletList}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <FormatListBulleted />
+                <FormatListBulleted sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
               <IconButton
                 size="small"
                 title="Numbered List"
                 onClick={handleNumberedList}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <FormatListNumbered />
+                <FormatListNumbered sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
 
               <ToolbarDivider />
 
-              <IconButton size="small" title="Quote" onClick={handleQuote}>
-                <FormatQuote />
+              <IconButton
+                size="small"
+                title="Quote"
+                onClick={handleQuote}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
+              >
+                <FormatQuote sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
-              <IconButton size="small" title="Code" onClick={handleCode}>
-                <Code />
+              <IconButton
+                size="small"
+                title="Code"
+                onClick={handleCode}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
+              >
+                <Code sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
 
               <ToolbarDivider />
@@ -1031,8 +1149,9 @@ export const WritePage = () => {
                 size="small"
                 title="Insert Image"
                 onClick={handleImageClick}
+                sx={{ p: { xs: 0.25, sm: 1 } }}
               >
-                <ImageIcon />
+                <ImageIcon sx={{ fontSize: { xs: 18, sm: 20 } }} />
               </IconButton>
               <input
                 ref={imageInputRef}
@@ -1047,7 +1166,7 @@ export const WritePage = () => {
               <Box
                 sx={{
                   mb: 3,
-                  p: 2,
+                  p: { xs: 1.5, sm: 2 },
                   borderRadius: 2,
                   backgroundColor: (theme) =>
                     theme.palette.mode === 'dark'
@@ -1061,11 +1180,17 @@ export const WritePage = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    gap: { xs: 1, sm: 0 },
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <LockIcon fontSize="small" color="primary" />
-                    <Typography variant="subtitle2" fontWeight={600}>
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight={600}
+                      sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' } }}
+                    >
                       Subscription Content
                     </Typography>
                     <Tooltip title="Publish this article encrypted for your subscription group members only">
@@ -1083,6 +1208,11 @@ export const WritePage = () => {
                       />
                     }
                     label={isEncrypted ? 'Encrypted' : 'Public'}
+                    sx={{
+                      '& .MuiTypography-root': {
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                      },
+                    }}
                   />
                 </Box>
 
@@ -1093,7 +1223,7 @@ export const WritePage = () => {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 1,
-                      p: 2,
+                      p: { xs: 1.5, sm: 2 },
                       backgroundColor: 'background.paper',
                       borderRadius: 2,
                       border: '1px solid',
@@ -1106,12 +1236,23 @@ export const WritePage = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        gap: { xs: 1, sm: 0 },
                       }}
                     >
                       <Box
-                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          flexWrap: 'wrap',
+                        }}
                       >
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography
+                          variant="body2"
+                          fontWeight={500}
+                          sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                        >
                           Also encrypt title, subtitle & cover image
                         </Typography>
                         <Tooltip title="By default, title, subtitle and cover image remain public for discovery. Enable this to encrypt everything.">
@@ -1137,7 +1278,10 @@ export const WritePage = () => {
                       severity={encryptMetadata ? 'warning' : 'info'}
                       sx={{ py: 0.5 }}
                     >
-                      <Typography variant="caption">
+                      <Typography
+                        variant="caption"
+                        sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
+                      >
                         {encryptMetadata
                           ? 'Article will be completely encrypted.'
                           : 'Title, subtitle and cover will be visible to everyone for discovery. Only content will be encrypted.'}
@@ -1163,15 +1307,20 @@ export const WritePage = () => {
 
             {/* Media File Upload - Required for episodes */}
             {type === 'episode' && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+              <Box sx={{ mb: { xs: 2, sm: 3 } }}>
+                <Typography
+                  variant="subtitle2"
+                  gutterBottom
+                  fontWeight={600}
+                  sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' } }}
+                >
                   Audio/Video File *
                 </Typography>
                 {mediaFile ? (
                   <MediaPreview>
                     <Box
                       sx={{
-                        p: 3,
+                        p: { xs: 2, sm: 3 },
                         display: 'flex',
                         alignItems: 'center',
                         gap: 2,
@@ -1179,20 +1328,37 @@ export const WritePage = () => {
                     >
                       {mediaFile.type === 'video' ? (
                         <VideocamIcon
-                          sx={{ fontSize: 40, color: 'primary.main' }}
+                          sx={{
+                            fontSize: { xs: 32, sm: 40 },
+                            color: 'primary.main',
+                          }}
                         />
                       ) : (
                         <AudioFileIcon
-                          sx={{ fontSize: 40, color: 'primary.main' }}
+                          sx={{
+                            fontSize: { xs: 32, sm: 40 },
+                            color: 'primary.main',
+                          }}
                         />
                       )}
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="h6" fontWeight={600}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="h6"
+                          fontWeight={600}
+                          sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                        >
                           {mediaFile.type === 'video'
                             ? 'Video File'
                             : 'Audio File'}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                            wordBreak: 'break-word',
+                          }}
+                        >
                           {mediaFile.name}
                         </Typography>
                         {mediaFile.type === 'video' &&
@@ -1202,7 +1368,10 @@ export const WritePage = () => {
                               size="small"
                               variant="outlined"
                               onClick={() => setShowMetadataDialog(true)}
-                              sx={{ mt: 1 }}
+                              sx={{
+                                mt: 1,
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                              }}
                             >
                               Add Metadata
                             </Button>
@@ -1212,7 +1381,10 @@ export const WritePage = () => {
                             label="Encrypted Video"
                             color="primary"
                             size="small"
-                            sx={{ mt: 1 }}
+                            sx={{
+                              mt: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+                            }}
                           />
                         )}
                         {videoMetadata && !isEncrypted && (
@@ -1220,7 +1392,10 @@ export const WritePage = () => {
                             label="Metadata Added"
                             color="success"
                             size="small"
-                            sx={{ mt: 1 }}
+                            sx={{
+                              mt: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+                            }}
                           />
                         )}
                       </Box>
@@ -1228,7 +1403,7 @@ export const WritePage = () => {
                         onClick={handleRemoveMediaFile}
                         size="small"
                       >
-                        <CloseIcon />
+                        <CloseIcon fontSize="small" />
                       </RemoveCoverButton>
                     </Box>
                   </MediaPreview>
@@ -1245,18 +1420,35 @@ export const WritePage = () => {
                       onChange={handleMediaFileUpload}
                     />
                     <UploadIcon
-                      sx={{ fontSize: 48, color: 'primary.main', mb: 2 }}
+                      sx={{
+                        fontSize: { xs: 40, sm: 48 },
+                        color: 'primary.main',
+                        mb: 2,
+                      }}
                     />
-                    <Typography variant="h6" fontWeight={600} gutterBottom>
+                    <Typography
+                      variant="h6"
+                      fontWeight={600}
+                      gutterBottom
+                      sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                    >
                       Upload Audio or Video
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                    >
                       Click to browse or drag and drop your file here
                     </Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
-                      sx={{ mt: 1, display: 'block' }}
+                      sx={{
+                        mt: 1,
+                        display: 'block',
+                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      }}
                     >
                       Supported formats: MP3, WAV, MP4, MOV, AVI
                     </Typography>
@@ -1266,8 +1458,13 @@ export const WritePage = () => {
             )}
 
             {/* Cover Image Upload - Required for all types */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom fontWeight={600}>
+            <Box sx={{ mb: { xs: 2, sm: 3 } }}>
+              <Typography
+                variant="subtitle2"
+                gutterBottom
+                fontWeight={600}
+                sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' } }}
+              >
                 Cover Image *
               </Typography>
               {coverImagePreview ? (
@@ -1277,7 +1474,7 @@ export const WritePage = () => {
                     onClick={handleRemoveCoverImage}
                     size="small"
                   >
-                    <CloseIcon />
+                    <CloseIcon fontSize="small" />
                   </RemoveCoverButton>
                 </CoverImagePreview>
               ) : (
@@ -1294,18 +1491,35 @@ export const WritePage = () => {
                     onChange={handleCoverImageUpload}
                   />
                   <UploadIcon
-                    sx={{ fontSize: 48, color: 'primary.main', mb: 2 }}
+                    sx={{
+                      fontSize: { xs: 40, sm: 48 },
+                      color: 'primary.main',
+                      mb: 2,
+                    }}
                   />
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
+                  <Typography
+                    variant="h6"
+                    fontWeight={600}
+                    gutterBottom
+                    sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                  >
                     Upload Cover Image
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                  >
                     Click to browse or drag and drop your image here
                   </Typography>
                   <Typography
                     variant="caption"
                     color="text.secondary"
-                    sx={{ mt: 1, display: 'block' }}
+                    sx={{
+                      mt: 1,
+                      display: 'block',
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                    }}
                   >
                     Recommended: 1920x1080px or 16:9 aspect ratio
                   </Typography>
@@ -1377,7 +1591,10 @@ export const WritePage = () => {
 
       {/* Preview */}
       {currentTab === 1 && (
-        <Container maxWidth="md" sx={{ py: 4 }}>
+        <Container
+          maxWidth="md"
+          sx={{ py: { xs: 2, sm: 4 }, px: { xs: 2, sm: 3 } }}
+        >
           <PreviewContainer>
             {title && <h1>{title}</h1>}
             {subtitle && <h2>{subtitle}</h2>}

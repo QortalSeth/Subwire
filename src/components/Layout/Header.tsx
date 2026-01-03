@@ -62,6 +62,9 @@ const Logo = styled(Link)(({ theme }) => ({
   whiteSpace: 'nowrap',
   wordBreak: 'normal',
   overflowWrap: 'normal',
+  [theme.breakpoints.down('sm')]: {
+    fontSize: '1.25rem',
+  },
 }));
 
 const SearchContainer = styled(Box)(({ theme }) => ({
@@ -112,8 +115,11 @@ const WriteButton = styled(Button)(({ theme }) => ({
         : '0 4px 12px rgba(129, 140, 248, 0.3)',
   },
   [theme.breakpoints.down('sm')]: {
-    padding: theme.spacing(1, 2),
+    padding: theme.spacing(0.75, 1.5),
     minWidth: 'auto',
+    '& .MuiButton-startIcon': {
+      margin: 0,
+    },
   },
 }));
 
@@ -124,6 +130,10 @@ const SignInButton = styled(Button)(({ theme }) => ({
   color: theme.palette.text.primary,
   '&:hover': {
     backgroundColor: theme.palette.action.hover,
+  },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(0.75, 1.5),
+    fontSize: '0.875rem',
   },
 }));
 
@@ -300,6 +310,10 @@ export const Header = () => {
                     textTransform: 'none',
                     fontWeight: 600,
                     borderRadius: 2,
+                    padding: { xs: '6px 12px', sm: '8px 16px' },
+                    '& .MuiButton-startIcon': {
+                      marginRight: { xs: 0, sm: 1 },
+                    },
                   }}
                 >
                   <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
@@ -350,6 +364,10 @@ export const Header = () => {
                     textTransform: 'none',
                     fontWeight: 600,
                     borderRadius: 2,
+                    padding: { xs: '6px 12px', sm: '8px 16px' },
+                    '& .MuiButton-startIcon': {
+                      marginRight: { xs: 0, sm: 1 },
+                    },
                   }}
                 >
                   <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
@@ -382,7 +400,7 @@ export const Header = () => {
                       : undefined
                   }
                   alt={auth?.name ? `${auth.name} avatar` : undefined}
-                  sx={{ width: 32, height: 32 }}
+                  sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 } }}
                 >
                   {auth?.name ? auth.name[0].toUpperCase() : <PersonIcon />}
                 </Avatar>
@@ -495,14 +513,14 @@ export const Header = () => {
                     >
                       Profile
                     </MenuItem>
-                    <MenuItem
+                    {/* <MenuItem
                       onClick={() => {
                         handleMenuClose();
                         navigate('/my-publications');
                       }}
                     >
                       My Publications
-                    </MenuItem>
+                    </MenuItem> */}
                   </>
                 )}
               </Menu>

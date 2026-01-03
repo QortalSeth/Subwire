@@ -53,6 +53,13 @@ const StyledDialog = styled(Dialog)(({ theme }) => ({
     borderRadius: theme.spacing(2),
     maxWidth: '600px',
     width: '100%',
+    margin: theme.spacing(2),
+    [theme.breakpoints.down('sm')]: {
+      margin: theme.spacing(2),
+      maxWidth: 'calc(100vw - 32px)',
+      width: 'calc(100vw - 32px)',
+      borderRadius: theme.spacing(1.5),
+    },
   },
 }));
 

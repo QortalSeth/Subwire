@@ -48,6 +48,9 @@ const PageHeader = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
   padding: theme.spacing(6, 0, 4),
   borderBottom: `1px solid ${theme.palette.divider}`,
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(4, 0, 3),
+  },
 }));
 
 const SearchField = styled(TextField)(({ theme }) => ({
@@ -65,19 +68,30 @@ const SearchField = styled(TextField)(({ theme }) => ({
   },
 }));
 
-const SearchSection = styled(Box)(() => ({
+const SearchSection = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: 16,
   marginBottom: 16,
+  [theme.breakpoints.down('sm')]: {
+    flexDirection: 'column',
+    gap: 12,
+    '& > *': {
+      width: '100%',
+    },
+  },
 }));
 
-const SearchButton = styled(Button)(() => ({
+const SearchButton = styled(Button)(({ theme }) => ({
   minWidth: '100px',
   height: '40px',
   borderRadius: '20px',
   textTransform: 'none',
   fontWeight: 600,
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+    minWidth: 'unset',
+  },
 }));
 
 const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
@@ -100,6 +114,9 @@ const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
         theme.palette.mode === 'dark'
           ? 'rgba(29, 155, 240, 0.1)'
           : 'rgba(29, 155, 240, 0.08)',
+    },
+    [theme.breakpoints.down('sm')]: {
+      borderRadius: '0 !important',
     },
   },
 }));
@@ -565,13 +582,22 @@ export const DiscoverPage = () => {
     <>
       {/* Header */}
       <PageHeader>
-        <Container maxWidth="lg">
-          <Typography variant="h3" fontWeight={700} gutterBottom>
+        <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3 } }}>
+          <Typography
+            variant="h3"
+            fontWeight={700}
+            gutterBottom
+            sx={{ fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } }}
+          >
             {searchType === 'names'
               ? 'Discover Authors'
               : 'Discover Publications'}
           </Typography>
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
+          <Typography
+            variant="h6"
+            color="text.secondary"
+            sx={{ mb: 4, fontSize: { xs: '1rem', sm: '1.25rem' } }}
+          >
             {searchType === 'names'
               ? 'Find writers and creators on Qortal'
               : 'Find publications and writers that inspire you'}
@@ -608,7 +634,8 @@ export const DiscoverPage = () => {
                 variant="outlined"
                 onClick={handleClearSearch}
                 sx={{
-                  minWidth: '100px',
+                  minWidth: { xs: 'unset', sm: '100px' },
+                  width: { xs: '100%', sm: 'auto' },
                   height: '40px',
                   borderRadius: '20px',
                   textTransform: 'none',
@@ -630,13 +657,19 @@ export const DiscoverPage = () => {
               }
             }}
             fullWidth
-            sx={{ maxWidth: 600 }}
+            sx={{ maxWidth: 600, flexDirection: { xs: 'column', sm: 'row' } }}
           >
-            <ToggleButton value="publications">
+            <ToggleButton
+              value="publications"
+              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+            >
               <ArticleIcon fontSize="small" />
               Publications
             </ToggleButton>
-            <ToggleButton value="names">
+            <ToggleButton
+              value="names"
+              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+            >
               <PersonIcon fontSize="small" />
               Qortal Names
             </ToggleButton>
@@ -653,12 +686,20 @@ export const DiscoverPage = () => {
             borderColor: 'divider',
           }}
         >
-          <Container maxWidth="lg">
+          <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3 } }}>
             <Tabs
               value={selectedTab}
               onChange={(_, newValue) => setSelectedTab(newValue)}
               variant="scrollable"
               scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                '& .MuiTab-root': {
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  minWidth: { xs: 'auto', sm: 120 },
+                  px: { xs: 2, sm: 3 },
+                },
+              }}
             >
               {tabs.map((tab) => (
                 <Tab
@@ -667,7 +708,6 @@ export const DiscoverPage = () => {
                   sx={{
                     textTransform: 'none',
                     fontWeight: 500,
-                    fontSize: '1rem',
                   }}
                 />
               ))}
@@ -677,7 +717,10 @@ export const DiscoverPage = () => {
       )}
 
       {/* Content */}
-      <Container maxWidth="lg" sx={{ py: 6 }}>
+      <Container
+        maxWidth="lg"
+        sx={{ py: { xs: 3, sm: 6 }, px: { xs: 2, sm: 3 } }}
+      >
         {searchType === 'names' ? (
           /* User Search Results */
           <>
@@ -685,7 +728,7 @@ export const DiscoverPage = () => {
               variant="h6"
               fontWeight={600}
               gutterBottom
-              sx={{ mb: 4 }}
+              sx={{ mb: 4, fontSize: { xs: '1.125rem', sm: '1.25rem' } }}
             >
               {userSearchResults.length > 0
                 ? `${userSearchResults.length} ${userSearchResults.length === 1 ? 'User' : 'Users'} Found`
@@ -748,7 +791,7 @@ export const DiscoverPage = () => {
               variant="h6"
               fontWeight={600}
               gutterBottom
-              sx={{ mb: 4 }}
+              sx={{ mb: 4, fontSize: { xs: '1.125rem', sm: '1.25rem' } }}
             >
               {getTabTitle()}
             </Typography>
