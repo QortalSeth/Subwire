@@ -51,7 +51,7 @@ export function useDecryptArticle(
       setDecryptedContent(null);
       setDecryptionFailed(false);
       setDecryptionError(null);
-      console.log('article2', article);
+
       // Check if this is an encrypted article
       if (!article?.encryptedContent || !article?.groupId) {
         return;
@@ -97,8 +97,6 @@ export function useDecryptArticle(
 
     attemptDecryption();
   }, [article?.encryptedContent, article?.groupId]);
-
-  console.log('decryptedContent', decryptedContent);
 
   return {
     decryptedContent,

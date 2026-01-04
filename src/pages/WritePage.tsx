@@ -16,6 +16,11 @@ import {
   FormControlLabel,
   Switch,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   FormatBold,
@@ -68,6 +73,12 @@ import {
 import { useGroupDetails } from '../hooks/useGroupDetails';
 import { useAtom } from 'jotai';
 import { useMediaInfo } from '../hooks/useMediaInfo';
+import {
+  buildQuitterArticleShareText,
+  publishQuitterPost,
+} from '../utils/quitterQdn';
+import quitterLogo from '../assets/quitter.webp';
+import { marked } from 'marked';
 
 const EditorContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
@@ -369,6 +380,15 @@ export const WritePage = () => {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<number | null>(null);
 
+  // Quitter share dialog (post-publish)
+  const [quitterDialogOpen, setQuitterDialogOpen] = useState(false);
+  const [quitterPostText, setQuitterPostText] = useState('');
+  const [isPostingToQuitter, setIsPostingToQuitter] = useState(false);
+  const [publishedLocation, setPublishedLocation] = useState<{
+    authorName: string;
+    identifier: string;
+  } | null>(null);
+
   // Get profile data to check for attached group
   const profileData = useAtomValue(profileDataAtom);
   const hasSubscriptionGroup = !!profileData?.groupId;
@@ -394,16 +414,10 @@ export const WritePage = () => {
     if (hasSubscriptionGroup && userEncryptionKey) {
       const savedPref = encryptionPreferences[userEncryptionKey];
       // Load saved preference or default to false
-      console.log(
-        'Loading encryption preference:',
-        savedPref,
-        'for key:',
-        userEncryptionKey
-      );
+
       setIsEncrypted(savedPref === true);
     } else {
       // Reset to false if no subscription group
-      console.log('No subscription group, setting isEncrypted to false');
       setIsEncrypted(false);
     }
     // Only run when dependencies change, not when isEncrypted changes
@@ -430,7 +444,6 @@ export const WritePage = () => {
 
   // Save preference to storage when toggle changes (but only if user made the change)
   const handleEncryptionToggle = (checked: boolean) => {
-    console.log('Encryption toggle changed to:', checked);
     setIsEncrypted(checked);
     if (hasSubscriptionGroup && userEncryptionKey) {
       setEncryptionPreferences((prev) => ({
@@ -447,9 +460,7 @@ export const WritePage = () => {
     if (mediaFile?.type === 'video') {
       if (checked) {
         // Switching TO encrypted mode - auto-generate minimal metadata
-        console.log(
-          'Switching to encrypted mode - auto-generating minimal metadata'
-        );
+
         const nameWithoutExt = mediaFile.file.name.replace(/\.[^/.]+$/, '');
         setVideoMetadata({
           title: nameWithoutExt,
@@ -463,9 +474,6 @@ export const WritePage = () => {
       } else {
         // Switching TO public mode - prompt for video metadata if not already set
         if (!videoMetadata) {
-          console.log(
-            'Switching to public mode - prompting for video metadata'
-          );
           setShowMetadataDialog(true);
         }
       }
@@ -621,14 +629,7 @@ export const WritePage = () => {
     }
 
     // Video metadata is only required for PUBLIC videos, not encrypted ones
-    console.log(
-      'Publish validation - isEncrypted:',
-      isEncrypted,
-      'mediaFile type:',
-      mediaFile?.type,
-      'videoMetadata:',
-      videoMetadata
-    );
+
     if (
       type === 'episode' &&
       mediaFile?.type === 'video' &&
@@ -658,12 +659,6 @@ export const WritePage = () => {
       // Prepare media attachments for episodes
       let media: MediaAttachment[] | undefined;
       if (type === 'episode' && mediaFile) {
-        console.log('=== PREPARING MEDIA FOR PUBLISH ===');
-        console.log('mediaFile.type:', mediaFile.type);
-        console.log('isEncrypted:', isEncrypted);
-        console.log('videoMetadata:', videoMetadata);
-        console.log('===================================');
-
         media = [
           {
             type: mediaFile.type,
@@ -676,8 +671,6 @@ export const WritePage = () => {
                 : undefined,
           },
         ];
-
-        console.log('Prepared media:', media);
       }
 
       const identifier = await publishArticle({
@@ -714,10 +707,18 @@ export const WritePage = () => {
       dismissToast(loadingId);
 
       showSuccess('Article published successfully!');
-      // Navigate to the published article
-      setTimeout(() => {
-        navigate(`/publication/${auth.name}/${identifier}`);
-      }, 1000);
+      const authorName = auth.name!;
+
+      // Open Quitter share dialog with a pre-filled post (user can edit).
+      setPublishedLocation({ authorName, identifier });
+      setQuitterPostText(
+        buildQuitterArticleShareText({
+          title,
+          authorName,
+          identifier,
+        })
+      );
+      setQuitterDialogOpen(true);
     } catch (error: any) {
       console.error('Error publishing article:', error);
       if (loadingId) {
@@ -726,6 +727,55 @@ export const WritePage = () => {
       showError(error.message || 'Failed to publish article');
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const navigateToPublishedArticle = () => {
+    if (!publishedLocation) return;
+    navigate(
+      `/publication/${publishedLocation.authorName}/${publishedLocation.identifier}`
+    );
+  };
+
+  const handleViewPublishedArticle = () => {
+    setQuitterDialogOpen(false);
+    navigateToPublishedArticle();
+  };
+
+  const handlePostToQuitter = async () => {
+    if (!auth?.name) {
+      showError('Please authenticate with a Qortal name to post to Quitter');
+      return;
+    }
+    if (!identifierOperations) {
+      showError('Authentication required');
+      return;
+    }
+
+    let loadId: string | undefined;
+    try {
+      setIsPostingToQuitter(true);
+      loadId = showLoading('Posting to Quitter...');
+      await publishQuitterPost({
+        text: quitterPostText,
+        coverImage: coverImage || undefined,
+        identifierOperations,
+        userName: auth.name,
+        publishMultipleResources,
+      });
+      showSuccess('Posted to Quitter!');
+      setQuitterDialogOpen(false);
+      navigateToPublishedArticle();
+    } catch (error) {
+      console.error('Error posting to Quitter:', error);
+      showError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to post to Quitter. Please try again.'
+      );
+    } finally {
+      if (loadId) dismissToast(loadId);
+      setIsPostingToQuitter(false);
     }
   };
 
@@ -802,18 +852,10 @@ export const WritePage = () => {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
-    console.log('Media file selected:', file);
+
     if (file) {
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/');
-      console.log(
-        'File type:',
-        file.type,
-        'isVideo:',
-        isVideo,
-        'isAudio:',
-        isAudio
-      );
 
       if (isVideo || isAudio) {
         // Validate video file for unsupported formats (HEVC codec and MKV container)
@@ -838,12 +880,6 @@ export const WritePage = () => {
           }
         }
 
-        console.log('=== VIDEO UPLOAD DEBUG ===');
-        console.log('isEncrypted state:', isEncrypted);
-        console.log('hasSubscriptionGroup:', hasSubscriptionGroup);
-        console.log('Current videoMetadata:', videoMetadata);
-        console.log('========================');
-
         setMediaFile({
           file,
           name: file.name,
@@ -853,7 +889,6 @@ export const WritePage = () => {
 
         // Open metadata dialog for all video files (encrypted and non-encrypted)
         if (isVideo) {
-          console.log('Opening video metadata dialog');
           setShowMetadataDialog(true);
         }
       }
@@ -866,14 +901,12 @@ export const WritePage = () => {
   };
 
   const handleSaveMetadata = (metadata: VideoMetadata) => {
-    console.log('Metadata saved:', metadata);
     setVideoMetadata(metadata);
   };
 
   const handleCloseMetadataDialog = (saved: boolean) => {
     // If cancelled (not saved), remove the video file
     if (!saved && mediaFile?.type === 'video') {
-      console.log('Metadata dialog cancelled - removing video');
       setMediaFile(null);
     }
     setShowMetadataDialog(false);
@@ -1591,54 +1624,118 @@ export const WritePage = () => {
 
       {/* Preview */}
       {currentTab === 1 && (
-        <Container
-          maxWidth="md"
-          sx={{ py: { xs: 2, sm: 4 }, px: { xs: 2, sm: 3 } }}
-        >
-          <PreviewContainer>
-            {title && <h1>{title}</h1>}
-            {subtitle && <h2>{subtitle}</h2>}
-
-            {/* Show video preview for new video uploads */}
-            {mediaFile?.type === 'video' && mediaFile.file && (
-              <VideoPreviewStyled controls>
-                <source
-                  src={URL.createObjectURL(mediaFile.file)}
-                  type={mediaFile.file.type}
-                />
-              </VideoPreviewStyled>
-            )}
-
-            {content && (
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: content
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/<u>(.*?)<\/u>/g, '<u>$1</u>')
-                    .replace(/`(.*?)`/g, '<code>$1</code>')
-                    .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
-                    .replace(/^- (.*$)/gim, '<li>$1</li>')
-                    .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
-                    .replace(
-                      /!\[(.*?)\]\((.*?)\)/g,
-                      '<img src="$2" alt="$1" />'
-                    )
-                    .replace(/\n/g, '<br />'),
-                }}
-              />
-            )}
-
-            {!title && !subtitle && !content && (
-              <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
-                <Typography variant="h6">Nothing to preview yet</Typography>
-                <Typography variant="body2">
-                  Start writing to see a preview of your post
+        <Box>
+          {/* Full-width hero (title + subtitle only) */}
+          <Box
+            sx={{
+              minHeight: { xs: 220, sm: 280 },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: coverImagePreview
+                ? `linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url(${coverImagePreview})`
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              position: 'relative',
+              overflow: 'hidden',
+              pt: { xs: 6, sm: 8 },
+              pb: { xs: 6, sm: 8 },
+            }}
+          >
+            <Box sx={{ width: '100%', maxWidth: 800, px: 3 }}>
+              {title && (
+                <Typography
+                  variant="h3"
+                  sx={{
+                    color: 'white',
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                    mb: subtitle ? 2 : 0,
+                  }}
+                >
+                  {title}
                 </Typography>
-              </Box>
-            )}
-          </PreviewContainer>
-        </Container>
+              )}
+              {subtitle && (
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: 'rgba(255,255,255,0.92)',
+                    lineHeight: 1.6,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                  }}
+                >
+                  {subtitle}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          {/* Content card (similar to ArticlePage content container) */}
+          <Container
+            maxWidth="lg"
+            sx={{ mt: { xs: -4, sm: -6 }, position: 'relative', zIndex: 2 }}
+          >
+            <Box
+              sx={(theme) => ({
+                backgroundColor: theme.palette.background.paper,
+                borderRadius: '24px 24px 0 0',
+                minHeight: '50vh',
+                pt: 4,
+                pb: 8,
+                boxShadow:
+                  theme.palette.mode === 'light'
+                    ? '0 -4px 24px rgba(0, 0, 0, 0.08)'
+                    : '0 -4px 24px rgba(0, 0, 0, 0.4)',
+              })}
+            >
+              <Container maxWidth="md" sx={{ py: 4 }}>
+                <PreviewContainer>
+                  {/* Show video preview for new video uploads */}
+                  {mediaFile?.type === 'video' && mediaFile.file && (
+                    <VideoPreviewStyled controls>
+                      <source
+                        src={URL.createObjectURL(mediaFile.file)}
+                        type={mediaFile.file.type}
+                      />
+                    </VideoPreviewStyled>
+                  )}
+
+                  {content && (
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: marked.parse(content, {
+                          breaks: true,
+                          gfm: true,
+                        }),
+                      }}
+                    />
+                  )}
+
+                  {!title && !subtitle && !content && (
+                    <Box
+                      sx={{
+                        textAlign: 'center',
+                        py: 8,
+                        color: 'text.secondary',
+                      }}
+                    >
+                      <Typography variant="h6">
+                        Nothing to preview yet
+                      </Typography>
+                      <Typography variant="body2">
+                        Start writing to see a preview of your post
+                      </Typography>
+                    </Box>
+                  )}
+                </PreviewContainer>
+              </Container>
+            </Box>
+          </Container>
+        </Box>
       )}
 
       {/* Video Metadata Dialog */}
@@ -1649,6 +1746,52 @@ export const WritePage = () => {
         videoFile={mediaFile?.file || null}
         isEncrypted={isEncrypted}
       />
+
+      {/* Quitter share dialog (after successful publish) */}
+      <Dialog
+        open={quitterDialogOpen}
+        onClose={handleViewPublishedArticle}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+            <Box
+              component="img"
+              src={quitterLogo}
+              alt="Quitter"
+              sx={{ width: 28, height: 28, borderRadius: 0.75 }}
+            />
+            <Typography variant="h6" fontWeight={700}>
+              Share on Quitter?
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Want to announce your new publication on Quitter? You can edit the
+            text before posting.
+          </DialogContentText>
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            value={quitterPostText}
+            onChange={(e) => setQuitterPostText(e.target.value)}
+            placeholder="Write your Quitter post..."
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleViewPublishedArticle}>View article</Button>
+          <Button
+            onClick={handlePostToQuitter}
+            variant="contained"
+            disabled={isPostingToQuitter}
+          >
+            {isPostingToQuitter ? 'Posting...' : 'Post to Quitter'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </EditorContainer>
   );
 };

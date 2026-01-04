@@ -7,7 +7,6 @@ import {
   Avatar,
   IconButton,
   Button,
-  // TextField,
   CircularProgress,
   Dialog,
   DialogTitle,
@@ -224,8 +223,7 @@ const StyledAvatar = styled(Avatar)(() => ({
 }));
 
 const ArticleContent = styled(Box)(({ theme }) => ({
-  maxWidth: 680,
-  margin: '0 auto',
+  width: '100%',
   fontSize: '1.125rem',
   lineHeight: 1.8,
   color: theme.palette.text.primary,
@@ -399,7 +397,7 @@ export const ArticlePage = () => {
   // Decrypt encrypted article content if needed
   const { decryptedContent, isDecrypting, decryptionFailed, decryptionError } =
     useDecryptArticle(articleData || null);
-  console.log('decryptedContent', decryptedContent);
+
   // Use decrypted content if available, otherwise use original article data
   const displayArticleData = useMemo(() => {
     if (!articleData) return undefined;
@@ -421,15 +419,13 @@ export const ArticlePage = () => {
 
     return articleData;
   }, [articleData, decryptedContent]);
-  console.log('displayArticleData', displayArticleData);
+
   // Separate video and audio files based on mimeType
   const videoFiles = useMemo(() => {
-    console.log('displayArticleData?.media', displayArticleData?.media);
     return displayArticleData?.media?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('video/')
     );
   }, [displayArticleData?.media]);
-  console.log('videoFiles', videoFiles);
   const audioFiles = useMemo(() => {
     return displayArticleData?.media?.filter(
       (v) => v.mimeType && v.mimeType.startsWith('audio/')
@@ -439,11 +435,9 @@ export const ArticlePage = () => {
   // Fetch video metadata for episodes
   const { videosWithMetadata, isLoading: isLoadingVideoMetadata } =
     useVideoMetadata(videoFiles, articleData?.groupId);
-  console.log('videosWithMetadata', videosWithMetadata);
   // Fetch audio metadata for episodes
   const { audiosWithMetadata, isLoading: isLoadingAudioMetadata } =
     useAudioMetadata(audioFiles, articleData?.groupId);
-  console.log('articleData', articleData);
 
   // Check if current user is the author
   const isAuthor = auth?.name === name;
@@ -722,8 +716,6 @@ export const ArticlePage = () => {
       </>
     );
   }
-
-  console.log('videosWithMetadata', videosWithMetadata);
 
   return (
     <>
@@ -1031,7 +1023,6 @@ export const ArticlePage = () => {
         </ContentContainer>
       </ContentSection>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}

@@ -54,8 +54,10 @@ import { VideoMetadataDialog } from '../components/VideoMetadataDialog';
 import { AudioPlayerDisplay } from '../components/AudioPlayerDisplay';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
+import { useDecryptArticle } from '../hooks/useDecryptArticle';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
 import { deleteDraft, generateDraftId } from '../utils/draftStorage';
+import { marked } from 'marked';
 
 const EditorContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
@@ -256,6 +258,7 @@ interface ArticleData {
   media?: ArticleMedia[];
   type?: 'essay' | 'episode';
   groupId?: number; // For encrypted articles
+  encryptedContent?: string; // Encrypted article payload (private group)
 }
 
 export const EditArticlePage = () => {
@@ -308,6 +311,16 @@ export const EditArticlePage = () => {
 
   const articleData = resource?.data as ArticleData | undefined;
 
+  // Decrypt encrypted article content (for private group articles)
+  const { decryptedContent } = useDecryptArticle(articleData || null);
+  const isEncryptedArticle =
+    !!articleData?.groupId && !!articleData?.encryptedContent;
+  const hasInitializedRef = useRef(false);
+
+  useEffect(() => {
+    hasInitializedRef.current = false;
+  }, [identifier, name]);
+
   // Filter video and audio files from existing videos
   const videoFiles = useMemo(() => {
     return existingMedia?.filter(
@@ -336,44 +349,70 @@ export const EditArticlePage = () => {
 
   // Populate form with existing article data
   useEffect(() => {
-    if (articleData) {
-      setTitle(articleData.title || '');
-      setSubtitle(articleData.subtitle || '');
-      setArticleType(articleData.type || 'essay');
+    if (!articleData) return;
+    if (hasInitializedRef.current) return;
+    if (isEncryptedArticle && !decryptedContent) return;
 
-      // Keep content with perennial-image:// references for editing
-      // Don't restore the base64 images in the editor - keep them as references
-      if (articleData.content) {
-        setContent(articleData.content);
-        setHistory([articleData.content]);
-        lastSavedContentRef.current = articleData.content;
-      }
+    // Use decrypted values when present (encrypted articles), otherwise fall back to public fields
+    const effectiveTitle =
+      (articleData.title || '').trim() ||
+      (decryptedContent?.title || '').trim() ||
+      '';
+    const effectiveSubtitle =
+      (articleData.subtitle || '').trim() ||
+      (decryptedContent?.subtitle || '').trim() ||
+      '';
+    const effectiveContent =
+      decryptedContent?.content ?? articleData.content ?? '';
 
-      // Set existing cover image
-      if (articleData.coverImage?.src) {
-        const coverUrl =
-          typeof articleData.coverImage.src === 'string'
-            ? articleData.coverImage.src.startsWith('data:')
-              ? articleData.coverImage.src
-              : `data:image/webp;base64,${articleData.coverImage.src}`
-            : '';
-        setExistingCoverImage(coverUrl);
-        setCoverImagePreview(coverUrl);
-      }
+    setTitle(effectiveTitle);
+    setSubtitle(effectiveSubtitle);
+    setArticleType(articleData.type || 'essay');
 
-      // Set existing media for episodes
-      if (articleData.media && articleData.media.length > 0) {
-        setExistingMedia(articleData.media);
-      }
+    // Keep content with perennial-image:// references for editing
+    setContent(effectiveContent);
+    setHistory([effectiveContent]);
+    lastSavedContentRef.current = effectiveContent;
 
-      // Generate draft ID for cleanup after update
-      if (auth?.name && identifier) {
-        setDraftId(
-          generateDraftId(articleData.type || 'essay', true, identifier)
-        );
-      }
+    // Cover image: prefer public cover (partial encryption), otherwise use decrypted cover (full encryption)
+    const coverSrc =
+      articleData.coverImage?.src ?? decryptedContent?.coverImage?.src;
+    if (coverSrc) {
+      const coverUrl =
+        typeof coverSrc === 'string'
+          ? coverSrc.startsWith('data:')
+            ? coverSrc
+            : `data:image/webp;base64,${coverSrc}`
+          : '';
+      setExistingCoverImage(coverUrl);
+      setCoverImagePreview(coverUrl);
     }
-  }, [articleData, auth?.name, identifier]);
+
+    // Existing media: for encrypted articles, media may only exist inside decryptedContent
+    const effectiveMedia =
+      articleData.media && articleData.media.length > 0
+        ? articleData.media
+        : (decryptedContent?.media as any[] | undefined);
+    if (effectiveMedia && effectiveMedia.length > 0) {
+      setExistingMedia(effectiveMedia as any);
+    }
+
+    // Generate draft ID for cleanup after update
+    if (auth?.name && identifier) {
+      setDraftId(
+        generateDraftId(articleData.type || 'essay', true, identifier)
+      );
+    }
+
+    hasInitializedRef.current = true;
+  }, [
+    articleData,
+    decryptedContent,
+    isEncryptedArticle,
+    auth?.name,
+    identifier,
+    name,
+  ]);
 
   const handleUpdate = async () => {
     if (!isAuthor) {
@@ -426,6 +465,11 @@ export const EditArticlePage = () => {
       }
 
       // Update article
+      const shouldEncryptMetadata =
+        !!articleData?.groupId &&
+        !!articleData?.encryptedContent &&
+        !articleData?.title;
+
       const resultIdentifier = await publishArticle({
         title,
         subtitle,
@@ -440,10 +484,22 @@ export const EditArticlePage = () => {
         addNewResources: lists.addNewResources,
         updateNewResources: lists.updateNewResources,
         existingIdentifier: identifier, // Pass the identifier to update existing article
+        existingImages:
+          (articleData?.images as any) || (decryptedContent?.images as any),
         existingCoverImage:
           !coverImage && existingCoverImage ? existingCoverImage : undefined,
         existingMedia:
           articleType === 'episode' && !mediaFile ? existingMedia : undefined,
+        groupId: articleData?.groupId,
+        encryptMetadata: shouldEncryptMetadata,
+        decryptedContent:
+          isEncryptedArticle && decryptedContent?.content
+            ? {
+                content: decryptedContent.content,
+                images: decryptedContent.images as any,
+                media: decryptedContent.media as any,
+              }
+            : undefined,
       });
 
       // Delete draft after successful update
@@ -570,7 +626,6 @@ export const EditArticlePage = () => {
   const handleCloseMetadataDialog = (saved: boolean) => {
     // If cancelled (not saved), remove the video file
     if (!saved && mediaFile && mediaType === 'video') {
-      console.log('Metadata dialog cancelled - removing video');
       setMediaFile(null);
       setMediaType(null);
     }
@@ -1046,120 +1101,205 @@ export const EditArticlePage = () => {
       )}
 
       {currentTab === 1 && (
-        <Container maxWidth="md" sx={{ py: 4 }}>
-          <PreviewContainer>
-            {title && <h1>{title}</h1>}
-            {subtitle && <h2>{subtitle}</h2>}
-
-            {/* Show video preview for new video uploads */}
-            {mediaFile && mediaType === 'video' && (
-              <VideoPreviewStyled controls>
-                <source
-                  src={URL.createObjectURL(mediaFile)}
-                  type={mediaFile.type}
-                />
-              </VideoPreviewStyled>
-            )}
-
-            {/* Show audio preview for new audio uploads */}
-            {mediaFile && mediaType === 'audio' && (
-              <Box sx={{ mb: 3 }}>
-                <audio controls style={{ width: '100%' }}>
-                  <source
-                    src={URL.createObjectURL(mediaFile)}
-                    type={mediaFile.type}
-                  />
-                </audio>
-              </Box>
-            )}
-
-            {/* Show existing video with VideoPlayer (only for video mimeType) */}
-            {!mediaFile &&
-              videosWithMetadata &&
-              videosWithMetadata.length > 0 && (
-                <VideoPlayerContainer>
-                  <VideoPlayer
-                    videoRef={videoRef}
-                    poster={
-                      videosWithMetadata[0].metadata.videoImage
-                        ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
-                        : undefined
-                    }
-                    qortalVideoResource={{
-                      name: videosWithMetadata[0].metadata.videoReference.name,
-                      service: videosWithMetadata[0].metadata.videoReference
-                        .service as Service,
-                      identifier:
-                        videosWithMetadata[0].metadata.videoReference
-                          .identifier,
-                    }}
-                    autoPlay={false}
-                    styling={{
-                      progressSlider: {
-                        thumbColor: 'white',
-                        railColor: '',
-                        trackColor: '#4285f4',
-                      },
-                    }}
-                  />
-                </VideoPlayerContainer>
-              )}
-
-            {/* Show existing audio with AudioPlayerDisplay (only for audio mimeType) */}
-            {!mediaFile &&
-              audiosWithMetadata &&
-              audiosWithMetadata.length > 0 &&
-              audiosWithMetadata[0].metadata?.audioReference && (
-                <Box sx={{ mb: 3 }}>
-                  <AudioPlayerDisplay
-                    articleTitle={title}
-                    audioMetadata={audiosWithMetadata[0].metadata}
-                  />
-                </Box>
-              )}
-
-            {content && (
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: (() => {
-                    // First restore perennial-image:// references with actual base64 data for preview
-                    let previewContent = content;
-                    if (articleData?.images && articleData.images.length > 0) {
-                      previewContent = restoreImagesForDisplay(
-                        content,
-                        articleData.images
-                      );
-                    }
-
-                    // Then apply markdown formatting
-                    return previewContent
-                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                      .replace(/<u>(.*?)<\/u>/g, '<u>$1</u>')
-                      .replace(/`(.*?)`/g, '<code>$1</code>')
-                      .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
-                      .replace(/^- (.*$)/gim, '<li>$1</li>')
-                      .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
-                      .replace(
-                        /!\[(.*?)\]\((.*?)\)/g,
-                        '<img src="$2" alt="$1" />'
-                      )
-                      .replace(/\n/g, '<br />');
-                  })(),
-                }}
-              />
-            )}
-
-            {!title && !subtitle && !content && (
-              <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
-                <Typography variant="h6">Nothing to preview yet</Typography>
-                <Typography variant="body2">
-                  Start editing to see a preview
+        <Box>
+          {/* Full-width hero (title + subtitle only) */}
+          <Box
+            sx={{
+              minHeight: { xs: 220, sm: 280 },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: coverImagePreview
+                ? `linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url(${coverImagePreview})`
+                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              position: 'relative',
+              overflow: 'hidden',
+              pt: { xs: 6, sm: 8 },
+              pb: { xs: 6, sm: 8 },
+            }}
+          >
+            <Box sx={{ width: '100%', maxWidth: 800, px: 3 }}>
+              {title && (
+                <Typography
+                  variant="h3"
+                  sx={{
+                    color: 'white',
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                    mb: subtitle ? 2 : 0,
+                  }}
+                >
+                  {title}
                 </Typography>
-              </Box>
-            )}
-          </PreviewContainer>
-        </Container>
+              )}
+              {subtitle && (
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: 'rgba(255,255,255,0.92)',
+                    lineHeight: 1.6,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                  }}
+                >
+                  {subtitle}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          {/* Content card (similar to ArticlePage content container) */}
+          <Container
+            maxWidth="lg"
+            sx={{ mt: { xs: -4, sm: -6 }, position: 'relative', zIndex: 2 }}
+          >
+            <Box
+              sx={(theme) => ({
+                backgroundColor: theme.palette.background.paper,
+                borderRadius: '24px 24px 0 0',
+                minHeight: '50vh',
+                pt: 4,
+                pb: 8,
+                boxShadow:
+                  theme.palette.mode === 'light'
+                    ? '0 -4px 24px rgba(0, 0, 0, 0.08)'
+                    : '0 -4px 24px rgba(0, 0, 0, 0.4)',
+              })}
+            >
+              <Container maxWidth="md" sx={{ py: 4 }}>
+                <PreviewContainer>
+                  {/* Show video preview for new video uploads */}
+                  {mediaFile && mediaType === 'video' && (
+                    <VideoPreviewStyled controls>
+                      <source
+                        src={URL.createObjectURL(mediaFile)}
+                        type={mediaFile.type}
+                      />
+                    </VideoPreviewStyled>
+                  )}
+
+                  {/* Show audio preview for new audio uploads */}
+                  {mediaFile && mediaType === 'audio' && (
+                    <Box sx={{ mb: 3 }}>
+                      <audio controls style={{ width: '100%' }}>
+                        <source
+                          src={URL.createObjectURL(mediaFile)}
+                          type={mediaFile.type}
+                        />
+                      </audio>
+                    </Box>
+                  )}
+
+                  {/* Show existing video with VideoPlayer (only for video mimeType) */}
+                  {!mediaFile &&
+                    videosWithMetadata &&
+                    videosWithMetadata.length > 0 && (
+                      <VideoPlayerContainer>
+                        <VideoPlayer
+                          videoRef={videoRef}
+                          poster={
+                            videosWithMetadata[0].metadata.videoImage
+                              ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
+                              : undefined
+                          }
+                          qortalVideoResource={{
+                            name: videosWithMetadata[0].metadata.videoReference
+                              .name,
+                            service: videosWithMetadata[0].metadata
+                              .videoReference.service as Service,
+                            identifier:
+                              videosWithMetadata[0].metadata.videoReference
+                                .identifier,
+                          }}
+                          autoPlay={false}
+                          styling={{
+                            progressSlider: {
+                              thumbColor: 'white',
+                              railColor: '',
+                              trackColor: '#4285f4',
+                            },
+                          }}
+                          {...(videosWithMetadata[0].key &&
+                            videosWithMetadata[0].iv && {
+                              encryption: {
+                                encryptionType: 'streamed-v1',
+                                iv: videosWithMetadata[0].iv,
+                                key: videosWithMetadata[0].key,
+                                mimeType:
+                                  videosWithMetadata[0].mimeType || 'video/mp4',
+                              },
+                            })}
+                        />
+                      </VideoPlayerContainer>
+                    )}
+
+                  {/* Show existing audio with AudioPlayerDisplay (only for audio mimeType) */}
+                  {!mediaFile &&
+                    audiosWithMetadata &&
+                    audiosWithMetadata.length > 0 &&
+                    audiosWithMetadata[0].metadata?.audioReference && (
+                      <Box sx={{ mb: 3 }}>
+                        <AudioPlayerDisplay
+                          articleTitle={title}
+                          audioMetadata={audiosWithMetadata[0].metadata}
+                          encryptionKey={audiosWithMetadata[0].key}
+                          encryptionIv={audiosWithMetadata[0].iv}
+                          mimeType={audiosWithMetadata[0].mimeType}
+                        />
+                      </Box>
+                    )}
+
+                  {content && (
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: (() => {
+                          // First restore perennial-image:// references with actual base64 data for preview
+                          let previewContent = content;
+                          const previewImages =
+                            (articleData?.images as any[]) ||
+                            (decryptedContent?.images as any[]) ||
+                            [];
+                          if (previewImages.length > 0) {
+                            previewContent = restoreImagesForDisplay(
+                              content,
+                              previewImages
+                            );
+                          }
+
+                          // Then render markdown like ArticlePage
+                          return marked.parse(previewContent, {
+                            breaks: true,
+                            gfm: true,
+                          });
+                        })(),
+                      }}
+                    />
+                  )}
+
+                  {!title && !subtitle && !content && (
+                    <Box
+                      sx={{
+                        textAlign: 'center',
+                        py: 8,
+                        color: 'text.secondary',
+                      }}
+                    >
+                      <Typography variant="h6">
+                        Nothing to preview yet
+                      </Typography>
+                      <Typography variant="body2">
+                        Start editing to see a preview
+                      </Typography>
+                    </Box>
+                  )}
+                </PreviewContainer>
+              </Container>
+            </Box>
+          </Container>
+        </Box>
       )}
 
       {/* Video Metadata Dialog */}
@@ -1168,6 +1308,7 @@ export const EditArticlePage = () => {
         onClose={handleCloseMetadataDialog}
         onSave={handleSaveMetadata}
         videoFile={mediaFile}
+        isEncrypted={!!articleData?.groupId}
       />
     </EditorContainer>
   );

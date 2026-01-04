@@ -702,7 +702,7 @@ export async function publishArticle({
               identifier: audioIdentifier,
               created: Date.now(),
             },
-            data: audioMetadataDoc,
+            data: groupId ? metadataBase64 : audioMetadataDoc,
           });
 
           // Store reference to the metadata document in the article
@@ -792,7 +792,6 @@ export async function publishArticle({
                 base64: metadataBase64,
               });
             } catch (error: any) {
-              console.log('error', error);
               if (error?.message?.includes('No group key found')) {
                 throw new Error(
                   'This group does not have encryption keys configured. Please create the group encrypted keys in Qortal Chat.'
@@ -838,7 +837,7 @@ export async function publishArticle({
                 identifier: videoIdentifier,
                 created: Date.now(),
               },
-              data: videoMetadataDoc,
+              data: groupId ? metadataBase64 : videoMetadataDoc,
             });
 
             // Store reference with encryption keys
@@ -980,7 +979,6 @@ export async function publishArticle({
       type,
       published: true,
     };
-    console.log('article', article);
 
     // Handle encryption for private group articles
     let articleDataToPublish: any;

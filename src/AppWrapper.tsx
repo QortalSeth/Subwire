@@ -3,6 +3,7 @@ import Layout from './styles/Layout';
 import { publicSalt } from './qapp-config';
 import { useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useTestIdentifiers } from './constants/qdn';
 
 export const AppWrapper = () => {
   const location = useLocation();
@@ -17,7 +18,7 @@ export const AppWrapper = () => {
   return (
     <GlobalProvider
       config={{
-        appName: 'perennial-dev', // change to your own
+        appName: useTestIdentifiers ? 'perennial-dev' : 'perennial', // change to your own
         auth: {
           balanceSetting: {
             interval: 180000,

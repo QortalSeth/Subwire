@@ -457,6 +457,9 @@ export const VideoMetadataDialog = ({
   };
 
   const isFormValid = isEncrypted ? true : (title.trim().length > 0 && selectedCategory !== null);
+  const hasAnyThumbnail =
+    (!!customThumbnail && customThumbnail.length > 0) || extractedFrames.length > 0;
+  const canConfirm = isFormValid && !isExtractingFrames && hasAnyThumbnail;
 
   // Determine the current poster image for the video preview
   const videoPoster = (() => {
@@ -676,6 +679,11 @@ export const VideoMetadataDialog = ({
         </ThumbnailSection>
 
         <ButtonContainer>
+          {isExtractingFrames && (
+            <InfoText sx={{ mr: 'auto', alignSelf: 'center' }}>
+              Generating thumbnails…
+            </InfoText>
+          )}
           <ActionButton variant="secondary" onClick={handleCancel}>
             <CloseIcon fontSize="small" />
             Cancel
@@ -683,7 +691,7 @@ export const VideoMetadataDialog = ({
           <ActionButton
             variant="primary"
             onClick={handleConfirm}
-            disabled={!isFormValid}
+            disabled={!canConfirm}
           >
             <CheckIcon fontSize="small" />
             Add Video

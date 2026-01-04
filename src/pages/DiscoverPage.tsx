@@ -505,13 +505,13 @@ export const DiscoverPage = () => {
   const getTabTitle = () => {
     switch (selectedTab) {
       case 0:
-        return 'All Articles';
+        return 'All Publications';
       case 1:
-        return 'Public Articles';
+        return 'Public Publications';
       case 2:
-        return 'Subscription Articles';
+        return 'Subscription Publications';
       default:
-        return 'Articles';
+        return 'Publications';
     }
   };
 

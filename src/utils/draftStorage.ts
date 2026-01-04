@@ -18,11 +18,15 @@ export interface ArticleDraft {
   coverImageData?: string; // Base64 encoded cover image (without data URL prefix)
   coverImageFilename?: string; // Original filename
   coverImageMimeType?: string; // MIME type for reconstruction
-  uploadedImages?: Record<string, { // Content images as base64
-    data: string; // Base64 encoded image data
-    filename: string;
-    mimeType: string;
-  }>;
+  uploadedImages?: Record<
+    string,
+    {
+      // Content images as base64
+      data: string; // Base64 encoded image data
+      filename: string;
+      mimeType: string;
+    }
+  >;
   // Note: Video/audio files are NOT saved in drafts - user must re-select them
   createdAt: number;
   updatedAt: number;
@@ -61,7 +65,7 @@ export async function saveDraft(
   try {
     const drafts = await loadDrafts(userName);
     const existingIndex = drafts.findIndex((d) => d.id === draft.id);
-    
+
     const updatedDraft: ArticleDraft = {
       ...draft,
       updatedAt: Date.now(),
@@ -75,7 +79,6 @@ export async function saveDraft(
 
     const key = getDraftsStorageKey(userName);
     await draftDB.setItem(key, drafts);
-    console.log('Draft saved:', draft.id);
   } catch (error) {
     console.error('Error saving draft:', error);
     throw error;
@@ -92,10 +95,9 @@ export async function deleteDraft(
   try {
     const drafts = await loadDrafts(userName);
     const filteredDrafts = drafts.filter((d) => d.id !== draftId);
-    
+
     const key = getDraftsStorageKey(userName);
     await draftDB.setItem(key, filteredDrafts);
-    console.log('Draft deleted:', draftId);
   } catch (error) {
     console.error('Error deleting draft:', error);
     throw error;
@@ -125,7 +127,6 @@ export async function clearAllDrafts(userName: string): Promise<void> {
   try {
     const key = getDraftsStorageKey(userName);
     await draftDB.removeItem(key);
-    console.log('All drafts cleared for user:', userName);
   } catch (error) {
     console.error('Error clearing drafts:', error);
     throw error;
@@ -135,10 +136,13 @@ export async function clearAllDrafts(userName: string): Promise<void> {
 /**
  * Generate a unique draft ID
  */
-export function generateDraftId(type: 'essay' | 'episode', isEdit: boolean = false, identifier?: string): string {
+export function generateDraftId(
+  type: 'essay' | 'episode',
+  isEdit: boolean = false,
+  identifier?: string
+): string {
   if (isEdit && identifier) {
     return `edit_${identifier}`;
   }
   return `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
-

@@ -112,7 +112,7 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   const navigate = useNavigate();
-  console.log('datadata', data);
+
   // Safety check: if no data, show a minimal card with author info
   if (!data) {
     console.warn(
@@ -247,19 +247,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   // For fully encrypted articles without public metadata, show a lock badge
   // const isFullyEncrypted = isEncrypted && !hasPublicMetadata; // Already defined above
 
-  console.log('ArticleCard data:', {
-    identifier: qortalMetadata.identifier,
-    isEncrypted,
-    isDecrypting,
-    decryptionFailed,
-    hasPublicMetadata,
-    isFullyEncrypted,
-    title: data.title,
-    decryptedTitle: decryptedContent?.title,
-    hasEncryptedContent: !!data.encryptedContent,
-    groupId: data.groupId,
-    displayData,
-  });
   return (
     <StyledCard onClick={handleClick} elevation={0}>
       {/* Media/Subscription indicator badges - positioned on card */}
