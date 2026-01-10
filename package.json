@@ -29,6 +29,7 @@
     "qapp-core": "file:../qapp-core/qapp-core-1.0.74.tgz",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.8",
     "react-i18next": "^15.5.1",
     "react-router-dom": "^7.3.0"
   },
@@ -36,6 +37,7 @@
     "@eslint/js": "^9.21.0",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@types/react-dropzone": "^4.2.2",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.5",

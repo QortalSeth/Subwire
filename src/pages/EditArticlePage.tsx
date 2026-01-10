@@ -32,6 +32,7 @@ import {
   Videocam as VideocamIcon,
   AudioFile as AudioFileIcon,
 } from '@mui/icons-material';
+import { useDropzone } from 'react-dropzone';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   useGlobal,
@@ -586,6 +587,15 @@ export const EditArticlePage = () => {
     }
   };
 
+  const handleCoverImageDrop = (files: File[]) => {
+    const file = files[0];
+    if (file && file.type.startsWith('image/')) {
+      setCoverImage(file);
+      const imageUrl = URL.createObjectURL(file);
+      setCoverImagePreview(imageUrl);
+    }
+  };
+
   const handleRemoveCoverImage = () => {
     if (coverImagePreview && coverImagePreview.startsWith('blob:')) {
       URL.revokeObjectURL(coverImagePreview);
@@ -749,6 +759,20 @@ export const EditArticlePage = () => {
       </EditorContainer>
     );
   }
+
+  // Dropzone for cover image
+  const {
+    getRootProps: getCoverImageRootProps,
+    getInputProps: getCoverImageInputProps,
+    isDragActive: isCoverImageDragActive,
+  } = useDropzone({
+    onDrop: handleCoverImageDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+    },
+    multiple: false,
+    noClick: false,
+  });
 
   return (
     <EditorContainer>
@@ -914,13 +938,19 @@ export const EditArticlePage = () => {
               ) : (
                 <CoverImageContainer
                   elevation={0}
-                  onClick={() => coverImageInputRef.current?.click()}
+                  {...getCoverImageRootProps()}
+                  sx={{
+                    borderColor: isCoverImageDragActive
+                      ? 'primary.main'
+                      : undefined,
+                    backgroundColor: isCoverImageDragActive
+                      ? 'action.hover'
+                      : undefined,
+                  }}
                 >
                   <input
                     ref={coverImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
+                    {...getCoverImageInputProps()}
                     onChange={handleCoverImageUpload}
                   />
                   <UploadIcon
@@ -930,7 +960,9 @@ export const EditArticlePage = () => {
                     Upload Cover Image
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Click to browse or drag and drop your image here
+                    {isCoverImageDragActive
+                      ? 'Drop your image here...'
+                      : 'Click to browse or drag and drop your image here'}
                   </Typography>
                 </CoverImageContainer>
               )}

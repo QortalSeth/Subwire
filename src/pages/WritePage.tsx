@@ -42,6 +42,7 @@ import {
   Lock as LockIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
+import { useDropzone } from 'react-dropzone';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   useGlobal,
@@ -840,6 +841,15 @@ export const WritePage = () => {
     }
   };
 
+  const handleCoverImageDrop = (files: File[]) => {
+    const file = files[0];
+    if (file && file.type.startsWith('image/')) {
+      setCoverImage(file);
+      const imageUrl = URL.createObjectURL(file);
+      setCoverImagePreview(imageUrl);
+    }
+  };
+
   const handleRemoveCoverImage = () => {
     if (coverImagePreview) {
       URL.revokeObjectURL(coverImagePreview);
@@ -854,44 +864,52 @@ export const WritePage = () => {
     const file = event.target.files?.[0];
 
     if (file) {
-      const isVideo = file.type.startsWith('video/');
-      const isAudio = file.type.startsWith('audio/');
+      await processMediaFile(file);
+      event.target.value = '';
+    }
+  };
 
-      if (isVideo || isAudio) {
-        // Validate video file for unsupported formats (HEVC codec and MKV container)
-        if (isVideo) {
-          const notSupportedCodec = await isHEVC(file);
-          const isMKV = getFileExtension(file) === 'mkv';
-          const isUnsupportedFile = notSupportedCodec || isMKV;
+  const processMediaFile = async (file: File) => {
+    const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
 
-          if (isUnsupportedFile) {
-            if (notSupportedCodec) {
-              showError(`${file.name} uses the unsupported encoding: HEVC`);
-            }
-            if (isMKV) {
-              showError(
-                `${file.name} uses the unsupported file container: MKV`
-              );
-            }
+    if (isVideo || isAudio) {
+      // Validate video file for unsupported formats (HEVC codec and MKV container)
+      if (isVideo) {
+        const notSupportedCodec = await isHEVC(file);
+        const isMKV = getFileExtension(file) === 'mkv';
+        const isUnsupportedFile = notSupportedCodec || isMKV;
 
-            // Reset the input
-            event.target.value = '';
-            return;
+        if (isUnsupportedFile) {
+          if (notSupportedCodec) {
+            showError(`${file.name} uses the unsupported encoding: HEVC`);
           }
-        }
-
-        setMediaFile({
-          file,
-          name: file.name,
-          type: isVideo ? 'video' : 'audio',
-        });
-        event.target.value = '';
-
-        // Open metadata dialog for all video files (encrypted and non-encrypted)
-        if (isVideo) {
-          setShowMetadataDialog(true);
+          if (isMKV) {
+            showError(
+              `${file.name} uses the unsupported file container: MKV`
+            );
+          }
+          return;
         }
       }
+
+      setMediaFile({
+        file,
+        name: file.name,
+        type: isVideo ? 'video' : 'audio',
+      });
+
+      // Open metadata dialog for all video files (encrypted and non-encrypted)
+      if (isVideo) {
+        setShowMetadataDialog(true);
+      }
+    }
+  };
+
+  const handleMediaFileDrop = async (files: File[]) => {
+    const file = files[0];
+    if (file) {
+      await processMediaFile(file);
     }
   };
 
@@ -969,6 +987,35 @@ export const WritePage = () => {
       }
     };
   }, []);
+
+  // Dropzone for cover image
+  const {
+    getRootProps: getCoverImageRootProps,
+    getInputProps: getCoverImageInputProps,
+    isDragActive: isCoverImageDragActive,
+  } = useDropzone({
+    onDrop: handleCoverImageDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+    },
+    multiple: false,
+    noClick: false,
+  });
+
+  // Dropzone for media files
+  const {
+    getRootProps: getMediaRootProps,
+    getInputProps: getMediaInputProps,
+    isDragActive: isMediaDragActive,
+  } = useDropzone({
+    onDrop: handleMediaFileDrop,
+    accept: {
+      'video/*': ['.mp4', '.mov', '.avi', '.webm'],
+      'audio/*': ['.mp3', '.wav', '.ogg', '.m4a'],
+    },
+    multiple: false,
+    noClick: false,
+  });
 
   return (
     <EditorContainer>
@@ -1443,13 +1490,19 @@ export const WritePage = () => {
                 ) : (
                   <MediaUploadZone
                     elevation={0}
-                    onClick={() => mediaInputRef.current?.click()}
+                    {...getMediaRootProps()}
+                    sx={{
+                      borderColor: isMediaDragActive
+                        ? 'primary.main'
+                        : undefined,
+                      backgroundColor: isMediaDragActive
+                        ? 'action.hover'
+                        : undefined,
+                    }}
                   >
                     <input
                       ref={mediaInputRef}
-                      type="file"
-                      accept="video/*,audio/*"
-                      hidden
+                      {...getMediaInputProps()}
                       onChange={handleMediaFileUpload}
                     />
                     <UploadIcon
@@ -1472,7 +1525,9 @@ export const WritePage = () => {
                       color="text.secondary"
                       sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
                     >
-                      Click to browse or drag and drop your file here
+                      {isMediaDragActive
+                        ? 'Drop your file here...'
+                        : 'Click to browse or drag and drop your file here'}
                     </Typography>
                     <Typography
                       variant="caption"
@@ -1513,14 +1568,20 @@ export const WritePage = () => {
               ) : (
                 <CoverImageContainer
                   elevation={0}
-                  onClick={() => coverImageInputRef.current?.click()}
+                  {...getCoverImageRootProps()}
+                  sx={{
+                    borderColor: isCoverImageDragActive
+                      ? 'primary.main'
+                      : undefined,
+                    backgroundColor: isCoverImageDragActive
+                      ? 'action.hover'
+                      : undefined,
+                  }}
                 >
                   <input
                     id="cover-image-upload"
                     ref={coverImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
+                    {...getCoverImageInputProps()}
                     onChange={handleCoverImageUpload}
                   />
                   <UploadIcon
@@ -1543,7 +1604,9 @@ export const WritePage = () => {
                     color="text.secondary"
                     sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
                   >
-                    Click to browse or drag and drop your image here
+                    {isCoverImageDragActive
+                      ? 'Drop your image here...'
+                      : 'Click to browse or drag and drop your image here'}
                   </Typography>
                   <Typography
                     variant="caption"

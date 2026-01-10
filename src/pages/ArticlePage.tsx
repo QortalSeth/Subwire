@@ -525,7 +525,15 @@ export const ArticlePage = () => {
   ]);
 
   const handleBack = () => {
-    navigate(-1);
+    // Check if there's navigation history by checking window.history.length
+    // If user came here directly (refresh or direct link), go to author's profile
+    // Otherwise, go back in history
+    if (window.history.length <= 2) {
+      // No meaningful history, navigate to author's profile
+      navigate(`/author/${name}`);
+    } else {
+      navigate(-1);
+    }
   };
 
   const handleShare = useCallback(async () => {

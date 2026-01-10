@@ -1101,6 +1101,31 @@ export async function publishArticle({
       ];
       updateNewResources(resourcesToUpdate);
     } else {
+      if (groupId) {
+        addNewResources(`SUBSCRIPTIONS_ARTICLES`, [
+          {
+            qortalMetadata: {
+              name: userName,
+              service: SERVICE_DOCUMENT,
+              identifier: articleIdentifier,
+              created: articleDataToPublish.timestamp,
+            },
+            data: articleDataToPublish,
+          },
+        ]);
+      } else {
+        addNewResources(`ONLY_PUBLIC_ARTICLES`, [
+          {
+            qortalMetadata: {
+              name: userName,
+              service: SERVICE_DOCUMENT,
+              identifier: articleIdentifier,
+              created: articleDataToPublish.timestamp,
+            },
+            data: articleDataToPublish,
+          },
+        ]);
+      }
       // Add new article to local state
       addNewResources(LIST_ARTICLES_FEED, [
         {
@@ -1113,6 +1138,18 @@ export async function publishArticle({
           data: articleDataToPublish,
         },
       ]);
+      addNewResources('ALL_ARTICLES', [
+        {
+          qortalMetadata: {
+            name: userName,
+            service: SERVICE_DOCUMENT,
+            identifier: articleIdentifier,
+            created: articleDataToPublish.timestamp,
+          },
+          data: articleDataToPublish,
+        },
+      ]);
+
       addNewResources(`user-articles-${userName}`, [
         {
           qortalMetadata: {

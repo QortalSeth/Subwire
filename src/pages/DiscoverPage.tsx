@@ -583,6 +583,11 @@ export const DiscoverPage = () => {
     setUserSearchResults([]);
   };
 
+  console.log(
+    'listname',
+    `${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`
+  );
+
   return (
     <>
       {/* Header */}

@@ -16,11 +16,13 @@ import {
   CardContent,
   Chip,
   Divider,
+  Skeleton,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import UploadIcon from '@mui/icons-material/CloudUpload';
 import GroupIcon from '@mui/icons-material/Group';
 import LockIcon from '@mui/icons-material/Lock';
+import { useDropzone } from 'react-dropzone';
 import { useAtom, useAtomValue } from 'jotai';
 import {
   useGlobal,
@@ -30,6 +32,7 @@ import {
   showError,
   showSuccess,
   useQortBalance,
+  checkGroupHasSubscription,
 } from 'qapp-core';
 import {
   hasProfileAtom,
@@ -214,10 +217,24 @@ export function EditProfileModal({
   const [isCompressing, setIsCompressing] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Track which groups have subscriptions enabled and their details
+  const [groupSubscriptionDetails, setGroupSubscriptionDetails] = useState<
+    Map<number, { exists: boolean; title?: string }>
+  >(new Map());
+  const [isCheckingSubscriptions, setIsCheckingSubscriptions] = useState(false);
+
   // Filter to only show private groups
   const privateGroups = useMemo(() => {
     return groups.filter((group) => !group.isOpen);
   }, [groups]);
+
+  // Filter private groups to only show those with subscriptions
+  const privateGroupsWithSubscriptions = useMemo(() => {
+    return privateGroups.filter((group) => {
+      const details = groupSubscriptionDetails.get(group.groupId);
+      return details?.exists === true;
+    });
+  }, [privateGroups, groupSubscriptionDetails]);
 
   // Reset form when modal opens with new profile data
   useEffect(() => {
@@ -228,6 +245,52 @@ export function EditProfileModal({
       setBioError('');
     }
   }, [open, currentProfile]);
+
+  // Check which private groups have subscriptions enabled
+  useEffect(() => {
+    const checkGroupSubscriptions = async () => {
+      if (!identifierOperations || privateGroups.length === 0) {
+        return;
+      }
+
+      setIsCheckingSubscriptions(true);
+      const detailsMap = new Map<number, { exists: boolean; title?: string }>();
+
+      try {
+        // Check each private group for subscription
+        await Promise.all(
+          privateGroups.map(async (group) => {
+            try {
+              const result = await checkGroupHasSubscription(
+                group.groupId,
+                identifierOperations
+              );
+
+              // Store the subscription details for this group
+              detailsMap.set(group.groupId, result);
+            } catch (error) {
+              console.error(
+                `Failed to check subscription for group ${group.groupId}:`,
+                error
+              );
+              // Set exists as false if check fails
+              detailsMap.set(group.groupId, { exists: false });
+            }
+          })
+        );
+
+        setGroupSubscriptionDetails(detailsMap);
+      } catch (error) {
+        console.error('Failed to check group subscriptions:', error);
+      } finally {
+        setIsCheckingSubscriptions(false);
+      }
+    };
+
+    if (open) {
+      checkGroupSubscriptions();
+    }
+  }, [open, privateGroups, identifierOperations]);
 
   const handleBioChange = (value: string) => {
     // Enforce 200 character limit
@@ -246,6 +309,10 @@ export function EditProfileModal({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    await processCoverImage(file);
+  };
+
+  const processCoverImage = async (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       showError('Please select an image file');
@@ -268,6 +335,13 @@ export function EditProfileModal({
       showError('Failed to process cover image. Please try again.');
     } finally {
       setIsCompressing(false);
+    }
+  };
+
+  const handleCoverImageDrop = async (files: File[]) => {
+    const file = files[0];
+    if (file) {
+      await processCoverImage(file);
     }
   };
 
@@ -382,6 +456,21 @@ export function EditProfileModal({
     );
   };
 
+  // Dropzone for cover image
+  const {
+    getRootProps: getCoverImageRootProps,
+    getInputProps: getCoverImageInputProps,
+    isDragActive: isCoverImageDragActive,
+  } = useDropzone({
+    onDrop: handleCoverImageDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+    },
+    multiple: false,
+    noClick: false,
+    disabled: isLoading || isCompressing,
+  });
+
   return (
     <StyledDialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <StyledDialogTitle>
@@ -418,14 +507,20 @@ export function EditProfileModal({
           ) : (
             <CoverImageContainer
               elevation={0}
-              onClick={() => coverImageInputRef.current?.click()}
+              {...getCoverImageRootProps()}
+              sx={{
+                borderColor: isCoverImageDragActive
+                  ? 'primary.main'
+                  : undefined,
+                backgroundColor: isCoverImageDragActive
+                  ? 'action.hover'
+                  : undefined,
+              }}
             >
               <input
                 id="cover-image-upload"
                 ref={coverImageInputRef}
-                type="file"
-                accept="image/*"
-                hidden
+                {...getCoverImageInputProps()}
                 onChange={handleCoverImageUpload}
                 disabled={isLoading || isCompressing}
               />
@@ -438,12 +533,16 @@ export function EditProfileModal({
                 </>
               ) : (
                 <>
-                  <UploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+                  <UploadIcon
+                    sx={{ fontSize: 48, color: 'primary.main', mb: 2 }}
+                  />
                   <Typography variant="body1" fontWeight={600} gutterBottom>
                     Upload Cover Image
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Click to browse or drag and drop your image here
+                    {isCoverImageDragActive
+                      ? 'Drop your image here...'
+                      : 'Click to browse or drag and drop your image here'}
                   </Typography>
                   <Typography
                     variant="caption"
@@ -500,14 +599,20 @@ export function EditProfileModal({
           <Typography variant="subtitle2" gutterBottom fontWeight={600}>
             Subscription Group (Optional)
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mb: 2, display: 'block' }}
+          >
             Attach a private group you own to enable subscription content
           </Typography>
 
           {/* Info Card about subscriptions */}
           <InfoCard sx={{ mb: 2 }}>
             <CardContent sx={{ py: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}
+              >
                 <LockIcon fontSize="small" color="primary" />
                 <Typography variant="body2" fontWeight={600}>
                   How Subscriptions Work
@@ -515,24 +620,49 @@ export function EditProfileModal({
               </Box>
               <Typography variant="caption" color="text.secondary">
                 When you attach a private group to your profile, you can create
-                encrypted articles that only members of that group can read. This
-                allows you to share exclusive content with your subscribers.
+                encrypted articles that only members of that group can read.
+                This allows you to share exclusive content with your
+                subscribers.
               </Typography>
             </CardContent>
           </InfoCard>
 
-          {isLoadingGroups ? (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                padding: 3,
-              }}
-            >
-              <CircularProgress size={24} />
+          {isLoadingGroups || isCheckingSubscriptions ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {/* Skeleton loader for groups */}
+              {[1, 2, 3].map((i) => (
+                <Card
+                  key={i}
+                  sx={{
+                    border: (theme) => `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <CardContent
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 2,
+                      p: 2,
+                      '&:last-child': {
+                        paddingBottom: 2,
+                      },
+                    }}
+                  >
+                    <Skeleton variant="circular" width={40} height={40} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Skeleton
+                        variant="text"
+                        width="60%"
+                        height={20}
+                        sx={{ mb: 0.5 }}
+                      />
+                      <Skeleton variant="text" width="80%" height={16} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
             </Box>
-          ) : privateGroups.length === 0 ? (
+          ) : privateGroupsWithSubscriptions.length === 0 ? (
             <Paper
               elevation={0}
               sx={{
@@ -546,8 +676,9 @@ export function EditProfileModal({
               }}
             >
               <Typography variant="body2" color="text.secondary">
-                You don't own any private groups yet. Create a private group first
-                to enable subscription content.
+                You don't have any private groups with subscriptions enabled
+                yet. Create a private group and set up a subscription first to
+                enable subscription content.
               </Typography>
             </Paper>
           ) : (
@@ -581,37 +712,57 @@ export function EditProfileModal({
               </GroupCard>
 
               {/* List of owned groups */}
-              {privateGroups.map((group) => (
-                <GroupCard
-                  key={group.groupId}
-                  selected={selectedGroupId === group.groupId}
-                  onClick={() => setSelectedGroupId(group.groupId)}
-                >
-                  <GroupCardContent>
-                    <GroupIconContainer>
-                      <GroupIcon />
-                    </GroupIconContainer>
-                    <GroupInfo>
-                      <Typography variant="body2" fontWeight={600}>
-                        {group.groupName || `Group ${group.groupId}`}
-                      </Typography>
-                      {group.description && (
-                        <Typography variant="caption" color="text.secondary">
-                          {group.description}
+              {privateGroupsWithSubscriptions.map((group) => {
+                const subscriptionDetails = groupSubscriptionDetails.get(
+                  group.groupId
+                );
+                const subscriptionTitle = subscriptionDetails?.title;
+
+                return (
+                  <GroupCard
+                    key={group.groupId}
+                    selected={selectedGroupId === group.groupId}
+                    onClick={() => setSelectedGroupId(group.groupId)}
+                  >
+                    <GroupCardContent>
+                      <GroupIconContainer>
+                        <GroupIcon />
+                      </GroupIconContainer>
+                      <GroupInfo>
+                        <Typography variant="body2" fontWeight={600}>
+                          {subscriptionTitle ||
+                            group.groupName ||
+                            `Group ${group.groupId}`}
                         </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {group.groupName || `Group ${group.groupId}`}
+                        </Typography>
+                        {group.description && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{
+                              display: 'block',
+                              mt: 0.5,
+                              opacity: 0.8,
+                            }}
+                          >
+                            {group.description}
+                          </Typography>
+                        )}
+                      </GroupInfo>
+                      {selectedGroupId === group.groupId && (
+                        <Chip
+                          label="Selected"
+                          size="small"
+                          color="primary"
+                          sx={{ height: '20px', fontSize: '11px' }}
+                        />
                       )}
-                    </GroupInfo>
-                    {selectedGroupId === group.groupId && (
-                      <Chip
-                        label="Selected"
-                        size="small"
-                        color="primary"
-                        sx={{ height: '20px', fontSize: '11px' }}
-                      />
-                    )}
-                  </GroupCardContent>
-                </GroupCard>
-              ))}
+                    </GroupCardContent>
+                  </GroupCard>
+                );
+              })}
             </Box>
           )}
         </Box>
@@ -637,4 +788,3 @@ export function EditProfileModal({
     </StyledDialog>
   );
 }
-
