@@ -63,3 +63,10 @@ export const isLoadingGroupOwnerNamesAtom = atom<boolean>(false);
 // Atom to store groups the user is a member of (for looking up group names by ID)
 // Null means not yet loaded, Map means loaded (can be empty)
 export const memberGroupsAtom = atom<Map<number, string> | null>(null);
+
+// Groups the user is subscribed to (member of but not owner). Map<groupId, groupName>.
+export const mySubscriptionGroupsAtom = atom<Map<number, string> | null>(null);
+
+// Group subscription search prefixes (built globally for notifications + DiscoverPage)
+export const groupArticleSearchPrefixesAtom = atom<string[] | null>(null);
+export const groupEpisodeSearchPrefixesAtom = atom<string[] | null>(null);

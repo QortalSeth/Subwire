@@ -29,8 +29,10 @@ import { useAtom, useAtomValue } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import {
   groupOwnerPrimaryNamesAtom,
+  groupArticleSearchPrefixesAtom,
+  groupEpisodeSearchPrefixesAtom,
   isLoadingGroupOwnerNamesAtom,
-  memberGroupsAtom,
+  mySubscriptionGroupsAtom,
 } from '../state/global/profile';
 import { ArticleCard } from '../components/ArticleCard';
 import { LoaderState, LoaderItem } from '../components/LoaderState';
@@ -39,10 +41,10 @@ import {
   ENTITY_ROOT,
   ENTITY_ARTICLE,
   ENTITY_EPISODE,
-  GROUP_PRIVATE_ARTICLE,
-  GROUP_PRIVATE_EPISODE,
 } from '../utils/articleQdn';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
+
+declare const qortalRequest: (params: any) => Promise<any>;
 
 const PageHeader = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
@@ -256,17 +258,17 @@ export const DiscoverPage = () => {
   const [episodeSearchPrefix, setEpisodeSearchPrefix] = useState<string | null>(
     null
   );
-  const [groupArticleSearchPrefixes, setGroupArticleSearchPrefixes] = useState<
-    string[] | null
-  >(null);
-  const [groupEpisodeSearchPrefixes, setGroupEpisodeSearchPrefixes] = useState<
-    string[] | null
-  >(null);
+  const groupArticleSearchPrefixes = useAtomValue(
+    groupArticleSearchPrefixesAtom
+  );
+  const groupEpisodeSearchPrefixes = useAtomValue(
+    groupEpisodeSearchPrefixesAtom
+  );
 
   // Access group data from atoms
   const isLoadingGroupOwnerNames = useAtomValue(isLoadingGroupOwnerNamesAtom);
   const groupOwnerNames = useAtomValue(groupOwnerPrimaryNamesAtom);
-  const memberGroups = useAtomValue(memberGroupsAtom);
+  const memberGroups = useAtomValue(mySubscriptionGroupsAtom);
   const [primaryNamesGroup, setPrimaryNamesGroup] = useState<string[] | null>(
     null
   );
@@ -293,35 +295,7 @@ export const DiscoverPage = () => {
         setEpisodeSearchPrefix(episodePrefix);
 
         setPrimaryNamesGroup(groupOwnerNames);
-
-        // Build search prefixes for group articles and episodes
-        const groupIds = Array.from(memberGroups.keys());
-        if (groupIds.length > 0) {
-          const groupArticlePrefixes = await Promise.all(
-            groupIds.map(async (groupId) => {
-              return await identifierOperations.buildSearchPrefix(
-                groupId.toString(),
-                '',
-                GROUP_PRIVATE_ARTICLE
-              );
-            })
-          );
-          setGroupArticleSearchPrefixes(groupArticlePrefixes);
-
-          const groupEpisodePrefixes = await Promise.all(
-            groupIds.map(async (groupId) => {
-              return await identifierOperations.buildSearchPrefix(
-                groupId.toString(),
-                '',
-                GROUP_PRIVATE_EPISODE
-              );
-            })
-          );
-          setGroupEpisodeSearchPrefixes(groupEpisodePrefixes);
-        } else {
-          setGroupArticleSearchPrefixes([]);
-          setGroupEpisodeSearchPrefixes([]);
-        }
+        // Group article/episode prefixes are built globally in useSubscriptionNotificationRegistration
       } catch (error) {
         console.error('Failed to build search prefix:', error);
       }
@@ -335,6 +309,8 @@ export const DiscoverPage = () => {
     groupOwnerNames,
     selectedTab,
   ]);
+
+  // NOTIFICATION_ADD for subscriptions runs globally in useSubscriptionNotificationRegistration when permission is granted
 
   const loaderItem = useCallback(() => {
     return <LoaderItem />;
@@ -712,8 +688,6 @@ export const DiscoverPage = () => {
                 setSelectedTab(newValue);
                 setSearchPrefix(null);
                 setEpisodeSearchPrefix(null);
-                setGroupArticleSearchPrefixes(null);
-                setGroupEpisodeSearchPrefixes(null);
               }}
               variant="scrollable"
               scrollButtons="auto"

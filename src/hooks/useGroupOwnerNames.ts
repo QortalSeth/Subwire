@@ -5,40 +5,33 @@ import {
   groupOwnerPrimaryNamesAtom,
   isLoadingGroupOwnerNamesAtom,
   memberGroupsAtom,
+  mySubscriptionGroupsAtom,
 } from '../state/global/profile';
-import {
-  getCachedPrimaryName,
-  setCachedPrimaryName,
-  cleanupExpiredPrimaryNames,
-} from '../utils/primaryNamesCache';
 
 /**
  * Hook to fetch and store primary names of group owners
  * for groups where the authenticated user is a member.
- * Uses 24-hour cache to avoid refetching primary names on each refresh.
+ * Uses ownerPrimaryName from the member-groups API response (no per-owner fetch).
  */
 export function useGroupOwnerNames() {
   const { auth } = useGlobal();
   const setGroupOwnerNames = useSetAtom(groupOwnerPrimaryNamesAtom);
   const setIsLoading = useSetAtom(isLoadingGroupOwnerNamesAtom);
   const setMemberGroups = useSetAtom(memberGroupsAtom);
+  const setMySubscriptionGroups = useSetAtom(mySubscriptionGroupsAtom);
 
   useEffect(() => {
     const fetchGroupOwnerNames = async () => {
-      // Only fetch if we have an authenticated address
       if (!auth?.address) {
         setGroupOwnerNames([]);
         setMemberGroups(new Map());
+        setMySubscriptionGroups(new Map());
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        // Clean up expired cache entries in the background
-        cleanupExpiredPrimaryNames().catch(console.error);
-
-        // Fetch groups where the user is a member (always fetch fresh)
         const groupsResponse = await fetch(`/groups/member/${auth.address}`);
         if (!groupsResponse.ok) {
           throw new Error('Failed to fetch groups');
@@ -50,11 +43,11 @@ export function useGroupOwnerNames() {
         if (!Array.isArray(groupsFiltered) || groupsFiltered.length === 0) {
           setGroupOwnerNames([]);
           setMemberGroups(new Map());
+          setMySubscriptionGroups(new Map());
           setIsLoading(false);
           return;
         }
 
-        // Create a map of groupId -> groupName for easy lookup
         const groupsMap = new Map<number, string>();
         groupsFiltered.forEach((group: any) => {
           if (group.groupId && group.groupName) {
@@ -62,68 +55,40 @@ export function useGroupOwnerNames() {
           }
         });
         setMemberGroups(groupsMap);
-
-        // Extract unique owners from the groups
-        const uniqueOwners = Array.from(
+        const groupsSubscriptionMap = new Map<number, string>();
+        groupsFiltered
+          .filter((group: any) => group?.owner !== auth?.address)
+          .forEach((group: any) => {
+            if (group.groupId && group.groupName) {
+              groupsSubscriptionMap.set(group.groupId, group.groupName);
+            }
+          });
+        setMySubscriptionGroups(groupsSubscriptionMap);
+        const validNames = Array.from(
           new Set(
             groupsFiltered
-              .map((group: any) => group.owner)
-              .filter((owner: any) => owner) // Filter out null/undefined
+              .filter((group: any) => group?.owner !== auth?.address)
+              .map((group: any) => group.ownerPrimaryName)
+              .filter((name): name is string => Boolean(name))
           )
-        ) as string[];
-
-        // Fetch primary name for each owner (with caching)
-        const primaryNamesPromises = uniqueOwners.map(async (owner) => {
-          try {
-            // Check cache first
-            const cachedName = await getCachedPrimaryName(owner);
-
-            // If we have a cached value (even if null), use it
-            if (cachedName !== undefined) {
-              return cachedName;
-            }
-
-            // Cache miss, fetch from API
-            const response = await fetch(`/names/primary/${owner}`);
-            if (!response.ok) {
-              // Cache the null result to avoid repeated failed requests
-              return null;
-            }
-
-            const name = await response.json();
-            const primaryName = name?.name || null;
-
-            // Cache the result
-            if (primaryName) {
-              await setCachedPrimaryName(owner, primaryName);
-            }
-
-            return primaryName;
-          } catch (error) {
-            console.error(`Failed to fetch name for owner ${owner}:`, error);
-            // Cache null on error to avoid repeated failed requests
-
-            return null;
-          }
-        });
-
-        const primaryNames = await Promise.all(primaryNamesPromises);
-
-        // Filter out null values and store the list
-        const validNames = primaryNames.filter(
-          (name): name is string => name !== null
         );
         setGroupOwnerNames(validNames);
       } catch (error) {
         console.error('Error fetching group owner names:', error);
         setGroupOwnerNames([]);
         setMemberGroups(new Map());
+        setMySubscriptionGroups(new Map());
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchGroupOwnerNames();
-  }, [auth?.address, setGroupOwnerNames, setIsLoading, setMemberGroups]);
+  }, [
+    auth?.address,
+    setGroupOwnerNames,
+    setIsLoading,
+    setMemberGroups,
+    setMySubscriptionGroups,
+  ]);
 }
-

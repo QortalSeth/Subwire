@@ -16,6 +16,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useGlobal } from 'qapp-core';
 
+declare const qortalRequest: (params: any) => Promise<any>;
+
 const HeroSection = styled(Box)(({ theme }) => ({
   background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
   color: 'white',

@@ -6,7 +6,11 @@ import { useInitializePreferredName } from '../hooks/useInitializePreferredName'
 import { useInitializeProfile } from '../hooks/useInitializeProfile';
 import { useInitializeOwnedGroups } from '../hooks/useInitializeOwnedGroups';
 import { useGroupOwnerNames } from '../hooks/useGroupOwnerNames';
+import { useSubscriptionNotificationRegistration } from '../hooks/useSubscriptionNotificationRegistration';
 import { useGlobal } from 'qapp-core';
+import { useEffect } from 'react';
+import { useSetAtom } from 'jotai';
+import { notificationPermissionAtom } from '../state/global/system';
 
 const LoadingContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -31,6 +35,31 @@ const Layout = () => {
 
   // Initialize member groups and group owner names for subscription content
   useGroupOwnerNames();
+
+  // When notification permission is granted, register subscription NOTIFICATION_ADD globally
+  useSubscriptionNotificationRegistration();
+
+  const setNotificationPermission = useSetAtom(notificationPermissionAtom);
+
+  const executeNotificationPermission = async () => {
+    try {
+      const result = await qortalRequest({
+        action: 'NOTIFICATION_PERMISSION',
+      });
+      console.log('result', result);
+      if (result) {
+        setNotificationPermission(true);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (auth?.address) {
+      executeNotificationPermission();
+    }
+  }, [auth?.address]);
 
   // Show loading indicator while authentication is in progress
   if (auth?.isLoadingUser) {

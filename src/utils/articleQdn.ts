@@ -332,7 +332,7 @@ export interface PublishArticleParams {
   title: string;
   subtitle?: string;
   content: string;
-  coverImage?: File; // Optional when editing (existingCoverImage will be used)
+  coverImage?: File | null; // Optional when editing (existingCoverImage will be used)
   media?: MediaAttachment[]; // Video/audio attachments for episodes
   identifierOperations: any;
   userName: string;
@@ -613,9 +613,10 @@ export async function publishArticle({
 
         // For public video: file identifier has no "_metadata" suffix; for public audio: same identifier as doc
         const isAudio = removedItem.mimeType?.startsWith('audio/');
-        const fileIdentifier = !isAudio && removedItem.identifier.endsWith('_metadata')
-          ? removedItem.identifier.slice(0, -'_metadata'.length)
-          : removedItem.identifier;
+        const fileIdentifier =
+          !isAudio && removedItem.identifier.endsWith('_metadata')
+            ? removedItem.identifier.slice(0, -'_metadata'.length)
+            : removedItem.identifier;
         resources.push({
           name: removedItem.name,
           service: isAudio ? SERVICE_AUDIO : SERVICE_VIDEO,
@@ -635,8 +636,9 @@ export async function publishArticle({
         existingMediaAttachments.filter(
           (m) => m.replaceWithNewFile && m.file && m.existingMedia
         );
-      const keptUnchangedAttachments =
-        existingMediaAttachments.filter((m) => !m.replaceWithNewFile);
+      const keptUnchangedAttachments = existingMediaAttachments.filter(
+        (m) => !m.replaceWithNewFile
+      );
 
       // Start with existing media that is unchanged
       if (keptUnchangedAttachments.length > 0) {
@@ -652,8 +654,7 @@ export async function publishArticle({
         if (attachment.type === 'audio') {
           const audioTitle =
             attachment.videoMetadata?.title || attachment.file.name;
-          const audioDescription =
-            attachment.videoMetadata?.description || '';
+          const audioDescription = attachment.videoMetadata?.description || '';
           const audioDuration = attachment.videoMetadata?.duration;
 
           const audioMetadataDoc: AudioMetadataDocument = {
@@ -744,8 +745,7 @@ export async function publishArticle({
 
           const videoTitle =
             attachment.videoMetadata.title || attachment.file.name;
-          const videoDescription =
-            attachment.videoMetadata.description || '';
+          const videoDescription = attachment.videoMetadata.description || '';
 
           const videoMetadataDoc: VideoMetadataDocument = {
             title: videoTitle,
