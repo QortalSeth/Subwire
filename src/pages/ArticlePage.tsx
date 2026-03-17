@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Container,
@@ -55,11 +55,14 @@ import { useHasLiked } from '../hooks/useHasLiked';
 import { useLikeCount } from '../hooks/useLikeCount';
 import { copyToClipboard } from '../utils/clipboard';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
+import { useAtomValue } from 'jotai';
+import { notificationPermissionAtom } from '../state/global/system';
 
 declare const qortalRequest: (params: {
   action: string;
   qortalLink?: string;
   groupId?: number;
+  notificationIds?: Array<{ notificationId: string; identifier: string }>;
 }) => Promise<unknown>;
 
 // Minimal header with just a back button
@@ -440,6 +443,32 @@ export const ArticlePage = () => {
 
   const articleData = resource?.data as ArticleData | undefined;
   const qortalMetadata = resource?.qortalMetadata;
+  const notificationPermission = useAtomValue(notificationPermissionAtom);
+
+  // Mark subscription notification as seen when visiting the article/episode
+  useEffect(() => {
+    if (
+      !notificationPermission ||
+      !articleData?.groupId ||
+      !identifier
+    ) {
+      return;
+    }
+    const kind =
+      articleData.type === 'episode' ? 'episodes' : 'articles';
+    const notificationId = `subwire-subscription-${kind}-${articleData.groupId}`;
+    qortalRequest({
+      action: 'NOTIFICATION_MARK_SEEN',
+      notificationIds: [{ notificationId, identifier }],
+    }).catch((err) => {
+      console.error('Failed to mark notification seen:', err);
+    });
+  }, [
+    notificationPermission,
+    articleData?.groupId,
+    articleData?.type,
+    identifier,
+  ]);
 
   // Decrypt encrypted article content if needed
   const { decryptedContent, isDecrypting, decryptionFailed, decryptionError } =

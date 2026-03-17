@@ -13,7 +13,7 @@ import {
   GROUP_PRIVATE_ARTICLE,
   GROUP_PRIVATE_EPISODE,
 } from '../utils/articleQdn';
-import { SERVICE_DOCUMENT, useTestIdentifiers } from '../constants/qdn';
+import { SERVICE_DOCUMENT } from '../constants/qdn';
 
 declare const qortalRequest: (params: any) => Promise<any>;
 
@@ -108,12 +108,14 @@ export function useSubscriptionNotificationRegistration() {
   useEffect(() => {
     if (!notificationPermission) return;
     if (
+      !memberGroups?.size ||
       !primaryNamesGroup?.length ||
       !groupArticleSearchPrefixes?.length ||
       !groupEpisodeSearchPrefixes?.length
     ) {
       return;
     }
+    const groupIds = Array.from(memberGroups.keys());
     const appName = 'subwire';
     const baseFilters = {
       service: SERVICE_DOCUMENT,
@@ -135,8 +137,9 @@ export function useSubscriptionNotificationRegistration() {
     }> = [];
 
     groupArticleSearchPrefixes.forEach((prefix, index) => {
+      const groupId = groupIds[index];
       notifications.push({
-        notificationId: `subwire-subscription-articles-${index}`,
+        notificationId: `subwire-subscription-articles-${groupId}`,
         link: `qortal://app/${appName}/publication/{name}/{identifier}`,
         image: '/arbitrary/THUMBNAIL/Subwire/qortal_avatar?async=true',
         message: { en: 'You have a new subscription article' },
@@ -148,8 +151,9 @@ export function useSubscriptionNotificationRegistration() {
       });
     });
     groupEpisodeSearchPrefixes.forEach((prefix, index) => {
+      const groupId = groupIds[index];
       notifications.push({
-        notificationId: `subwire-subscription-episodes-${index}`,
+        notificationId: `subwire-subscription-episodes-${groupId}`,
         link: `qortal://app/${appName}/publication/{name}/{identifier}`,
         image: '/arbitrary/THUMBNAIL/Subwire/qortal_avatar?async=true',
         message: { en: 'You have a new subscription episode' },
@@ -160,15 +164,23 @@ export function useSubscriptionNotificationRegistration() {
         },
       });
     });
-
     qortalRequest({
-      action: 'NOTIFICATION_ADD',
-      notifications,
-    }).catch((err) => {
-      console.error('Failed to add subscription notifications:', err);
-    });
+      action: 'NOTIFICATION_REMOVE',
+    })
+      .then(() => {
+        qortalRequest({
+          action: 'NOTIFICATION_ADD',
+          notifications,
+        }).catch((err) => {
+          console.error('Failed to add subscription notifications:', err);
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to add subscription notifications:', err);
+      });
   }, [
     notificationPermission,
+    memberGroups,
     primaryNamesGroup,
     groupArticleSearchPrefixes,
     groupEpisodeSearchPrefixes,
