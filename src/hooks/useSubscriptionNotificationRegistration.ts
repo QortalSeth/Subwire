@@ -50,7 +50,7 @@ export function useSubscriptionNotificationRegistration() {
     ) {
       return;
     }
-    console.log('memberGroups', memberGroups);
+
     const groupIds = Array.from(memberGroups.keys());
     if (groupIds.length === 0) {
       setGroupArticleSearchPrefixes([]);
@@ -101,8 +101,6 @@ export function useSubscriptionNotificationRegistration() {
     setGroupArticleSearchPrefixes,
     setGroupEpisodeSearchPrefixes,
   ]);
-
-  console.log('notificationPermission', notificationPermission);
 
   // When permission is granted, register subscription notifications (global NOTIFICATION_ADD)
   useEffect(() => {

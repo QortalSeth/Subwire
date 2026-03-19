@@ -427,7 +427,6 @@ export async function publishArticle({
   decryptedContent,
 }: PublishArticleParams): Promise<string> {
   try {
-    console.log('existingMedia', existingMedia, media);
     if (!userName) {
       throw new Error('A Qortal name is required to publish');
     }
@@ -595,12 +594,7 @@ export async function publishArticle({
       const removedMedia = existingMedia.filter(
         (item) => !keptMediaIdentifiers.has(item.identifier)
       );
-      console.log(
-        'removedMedia',
-        removedMedia,
-        existingMedia,
-        keptMediaIdentifiers
-      );
+
       // Add removed video/audio resources (both metadata and file) to deletion list
       for (const removedItem of removedMedia) {
         // Add the metadata document deletion to resources array (identifier is the _metadata one for video)
@@ -1348,7 +1342,7 @@ export async function publishArticle({
       title: encryptMetadata ? '' : truncatedTitle,
       description: encryptMetadata ? '' : description,
     });
-    console.log('resources', resources);
+
     // Publish using publishMultipleResources (same pattern as example app)
     await publishMultipleResources(resources);
 

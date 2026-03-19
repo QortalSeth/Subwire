@@ -317,7 +317,6 @@ export const DiscoverPage = () => {
   }, []);
 
   const loaderList = useCallback((status: LoaderListStatus) => {
-    console.log('status', status);
     return (
       <LoaderState
         status={status}
@@ -444,7 +443,7 @@ export const DiscoverPage = () => {
             return { params };
           })
         );
-        console.log('groupArticleSearchPrefixes', groupArticleSearchPrefixes);
+
         // Add group episodes
         dataSources.push(
           ...groupEpisodeSearchPrefixes.map((prefix) => {
@@ -478,7 +477,6 @@ export const DiscoverPage = () => {
     searchQuery,
     searchNames,
   ]);
-  console.log('secondaryDataSources', secondaryDataSources);
   // Get tab title for display
   const getTabTitle = () => {
     switch (selectedTab) {
@@ -555,23 +553,6 @@ export const DiscoverPage = () => {
     setSearchNames(null);
     setUserSearchResults([]);
   };
-
-  console.log(
-    'listname',
-    `${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`
-  );
-
-  console.log('search', search);
-
-  console.log(
-    'entity Param',
-    selectedTab === 2
-      ? undefined // Subscriptions tab uses only secondaryDataSources
-      : {
-          entityType: ENTITY_ARTICLE,
-          parentId: ENTITY_ROOT,
-        }
-  );
 
   return (
     <>

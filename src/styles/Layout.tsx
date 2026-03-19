@@ -46,7 +46,7 @@ const Layout = () => {
       const result = await qortalRequest({
         action: 'NOTIFICATION_PERMISSION',
       });
-      console.log('result', result);
+
       if (result) {
         setNotificationPermission(true);
       }

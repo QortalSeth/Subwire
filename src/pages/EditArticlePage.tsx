@@ -343,7 +343,7 @@ export const EditArticlePage = () => {
   });
 
   const articleData = resource?.data as ArticleData | undefined;
-  console.log('articleData', articleData);
+
   // Decrypt encrypted article content (for private group articles)
   const { decryptedContent } = useDecryptArticle(articleData || null);
   const isEncryptedArticle =
@@ -570,8 +570,6 @@ export const EditArticlePage = () => {
         !!articleData?.encryptedContent &&
         !articleData?.title;
 
-      console.log('media', media);
-
       const resultIdentifier = await publishArticle({
         title,
         subtitle,
@@ -672,7 +670,10 @@ export const EditArticlePage = () => {
     const quoted =
       selectedText.indexOf('\n') === -1
         ? '> ' + selectedText
-        : selectedText.split('\n').map((line) => '> ' + line).join('\n');
+        : selectedText
+            .split('\n')
+            .map((line) => '> ' + line)
+            .join('\n');
     const newText =
       beforeText + (needNewlineBefore ? '\n' : '') + quoted + afterText;
     setContent(newText);

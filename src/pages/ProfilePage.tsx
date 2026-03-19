@@ -242,7 +242,7 @@ export const ProfilePage = () => {
     groupId: profile?.groupId ?? null,
     enabled: !isOwnProfile && !!auth?.address && !!profile?.groupId,
   });
-  console.log('subscription status', status);
+
   // Get avatar URL
   const avatarUrl = name
     ? `/arbitrary/THUMBNAIL/${name}/qortal_avatar?async=true`

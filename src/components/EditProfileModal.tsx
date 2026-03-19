@@ -592,6 +592,8 @@ export function EditProfileModal({
           inputProps={{ maxLength: 200 }}
         />
 
+        {auth?.name === auth?.primaryName && (
+          <>
         <Divider sx={{ my: 3 }} />
 
         {/* Subscription Group Section */}
@@ -766,6 +768,8 @@ export function EditProfileModal({
             </Box>
           )}
         </Box>
+          </>
+        )}
       </DialogContent>
 
       <DialogActions sx={{ p: 3, pt: 2 }}>
