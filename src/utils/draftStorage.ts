@@ -2,7 +2,7 @@ import localforage from 'localforage';
 
 // Configure localforage for draft storage
 const draftDB = localforage.createInstance({
-  name: 'Beacon-App',
+  name: 'Subwire-App',
   storeName: 'drafts',
   description: 'Stores article drafts with auto-save',
 });

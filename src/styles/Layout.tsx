@@ -8,9 +8,18 @@ import { useInitializeOwnedGroups } from '../hooks/useInitializeOwnedGroups';
 import { useGroupOwnerNames } from '../hooks/useGroupOwnerNames';
 import { useSubscriptionNotificationRegistration } from '../hooks/useSubscriptionNotificationRegistration';
 import { useGlobal } from 'qapp-core';
-import { useEffect } from 'react';
-import { useSetAtom } from 'jotai';
-import { notificationPermissionAtom } from '../state/global/system';
+import { useEffect, useRef } from 'react';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import {
+  hubSupportsNotificationPermissionAtom,
+  notificationPermissionAtom,
+  notificationPermissionDeclinedByAddressAtom,
+} from '../state/global/system';
+import { fetchHubSupportsNotificationPermission } from '../utils/hubNotificationCapability';
+import {
+  applyHubNotificationPermissionOutcome,
+  requestHubNotificationPermissionOutcome,
+} from '../utils/hubNotificationPermissionRequest';
 
 const LoadingContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -40,26 +49,79 @@ const Layout = () => {
   useSubscriptionNotificationRegistration();
 
   const setNotificationPermission = useSetAtom(notificationPermissionAtom);
+  const setHubSupportsNotificationPermission = useSetAtom(
+    hubSupportsNotificationPermissionAtom
+  );
+  const hubSupportsNotificationPermission = useAtomValue(
+    hubSupportsNotificationPermissionAtom
+  );
 
-  const executeNotificationPermission = async () => {
-    try {
-      const result = await qortalRequest({
-        action: 'NOTIFICATION_PERMISSION',
-      });
+  const [declinedByAddress, setDeclinedByAddress] = useAtom(
+    notificationPermissionDeclinedByAddressAtom
+  );
+  const declinedRef = useRef(declinedByAddress);
+  declinedRef.current = declinedByAddress;
 
-      if (result) {
-        setNotificationPermission(true);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const previousAddressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (auth?.address) {
-      executeNotificationPermission();
+    let cancelled = false;
+    (async () => {
+      const supported = await fetchHubSupportsNotificationPermission();
+      if (!cancelled) {
+        setHubSupportsNotificationPermission(supported);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setHubSupportsNotificationPermission]);
+
+  useEffect(() => {
+    if (!auth?.address) {
+      setNotificationPermission(false);
+      previousAddressRef.current = null;
+      return;
     }
-  }, [auth?.address]);
+
+    const address = auth.address;
+
+    if (previousAddressRef.current !== address) {
+      setNotificationPermission(false);
+      previousAddressRef.current = address;
+    }
+
+    if (hubSupportsNotificationPermission !== true) {
+      return;
+    }
+
+    // Ref read: map updates (grant/decline) do not re-prompt via this effect
+    if (declinedRef.current[address]) {
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const outcome = await requestHubNotificationPermissionOutcome();
+      if (cancelled) return;
+      applyHubNotificationPermissionOutcome(
+        address,
+        outcome,
+        setDeclinedByAddress,
+        setNotificationPermission
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    auth?.address,
+    hubSupportsNotificationPermission,
+    setDeclinedByAddress,
+    setNotificationPermission,
+  ]);
 
   // Show loading indicator while authentication is in progress
   if (auth?.isLoadingUser) {

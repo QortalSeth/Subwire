@@ -21,7 +21,7 @@ interface ProfileCacheDB extends DBSchema {
   };
 }
 
-const DB_NAME = 'beacon-profile-cache';
+const DB_NAME = 'subwire-profile-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'profiles';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -94,9 +94,7 @@ export async function saveProfileToCache(
  * @param qortalName - The Qortal name
  * @returns Cached profile or null if not found/expired
  */
-export async function loadProfileFromCache(
-  qortalName: string
-): Promise<{
+export async function loadProfileFromCache(qortalName: string): Promise<{
   bio: string;
   avatar?: string;
   coverImage?: string;
@@ -177,4 +175,3 @@ export async function clearAllProfiles(): Promise<void> {
     console.error('Error clearing all profiles:', error);
   }
 }
-

@@ -24,8 +24,17 @@ import {
   Explore as ExploreIcon,
 } from '@mui/icons-material';
 import { useGlobal, showError, showSuccess, useAuth } from 'qapp-core';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { preferredNamesMapAtom } from '../../state/global/profile';
+import {
+  hubSupportsNotificationPermissionAtom,
+  notificationPermissionAtom,
+  notificationPermissionDeclinedByAddressAtom,
+} from '../../state/global/system';
+import {
+  applyHubNotificationPermissionOutcome,
+  requestHubNotificationPermissionOutcome,
+} from '../../utils/hubNotificationPermissionRequest';
 import {
   userNamesAtom,
   isLoadingUserNamesAtom,
@@ -147,6 +156,8 @@ export const Header = () => {
   const [showNameList, setShowNameList] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [isEnablingHubNotifications, setIsEnablingHubNotifications] =
+    useState(false);
 
   const [preferredNamesMap, setPreferredNamesMap] = useAtom(
     preferredNamesMapAtom
@@ -155,6 +166,15 @@ export const Header = () => {
   const [isLoadingNames] = useAtom(isLoadingUserNamesAtom);
   const setUserNames = useSetAtom(userNamesAtom);
   const setIsLoadingUserNames = useSetAtom(isLoadingUserNamesAtom);
+
+  const hubSupportsNotificationPermission = useAtomValue(
+    hubSupportsNotificationPermissionAtom
+  );
+  const notificationPermission = useAtomValue(notificationPermissionAtom);
+  const setNotificationPermission = useSetAtom(notificationPermissionAtom);
+  const setDeclinedByAddress = useSetAtom(
+    notificationPermissionDeclinedByAddressAtom
+  );
 
   // Fetch names when component mounts or address changes
   useEffect(() => {
@@ -262,11 +282,59 @@ export const Header = () => {
   // Check if we're on the discover page
   const isOnDiscoverPage = location.pathname === '/discover';
 
+  const showEnableHubNotifications =
+    Boolean(auth?.address) &&
+    hubSupportsNotificationPermission === true &&
+    !notificationPermission;
+
+  const handleEnableHubNotifications = async () => {
+    if (!auth?.address || isEnablingHubNotifications) return;
+    const address = auth.address;
+    setIsEnablingHubNotifications(true);
+    try {
+      setDeclinedByAddress((prev) => {
+        const { [address]: _, ...rest } = prev;
+        return rest;
+      });
+      const outcome = await requestHubNotificationPermissionOutcome();
+      applyHubNotificationPermissionOutcome(
+        address,
+        outcome,
+        setDeclinedByAddress,
+        setNotificationPermission
+      );
+    } finally {
+      setIsEnablingHubNotifications(false);
+    }
+  };
+
   return (
     <StyledAppBar position="sticky">
       <StyledToolbar>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Logo to="/">SubWire</Logo>
+          {showEnableHubNotifications && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={handleEnableHubNotifications}
+              disabled={isEnablingHubNotifications}
+              startIcon={
+                isEnablingHubNotifications ? (
+                  <CircularProgress size={14} color="inherit" />
+                ) : undefined
+              }
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                maxWidth: { xs: 140, sm: 'none' },
+                fontSize: { xs: '0.75rem', sm: '0.8125rem' },
+              }}
+            >
+              {isEnablingHubNotifications ? 'Enabling…' : 'Enable Hub notification'}
+            </Button>
+          )}
         </Box>
 
         <NavButtons>
