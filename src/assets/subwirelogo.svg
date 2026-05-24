@@ -1,0 +1,31 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="subwireGradient" x1="185" y1="170" x2="835" y2="850" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D8B4FE"/>
+      <stop offset="48%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+
+    <filter id="softDepth" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.18"/>
+    </filter>
+
+    <clipPath id="circleClip">
+      <circle cx="512" cy="512" r="456"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#circleClip)" filter="url(#softDepth)">
+    <circle cx="512" cy="512" r="456" fill="url(#subwireGradient)"/>
+
+    <path d="M-42 770 C250 490 585 365 1095 330"
+          stroke="#050509"
+          stroke-width="74"
+          stroke-linecap="butt"/>
+
+    <path d="M115 912 C365 650 650 540 1100 500"
+          stroke="#050509"
+          stroke-width="74"
+          stroke-linecap="butt"/>
+  </g>
+</svg>

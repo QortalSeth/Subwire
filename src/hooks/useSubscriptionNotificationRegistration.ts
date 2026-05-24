@@ -17,6 +17,38 @@ import { SERVICE_DOCUMENT } from '../constants/qdn';
 
 declare const qortalRequest: (params: any) => Promise<any>;
 
+type NotificationMessage = Record<string, string>;
+
+const SUBSCRIPTION_ARTICLE_NOTIFICATION_MESSAGE: NotificationMessage = {
+  en: 'You have a new subscription article',
+  de: 'Du hast einen neuen Abo-Artikel',
+  ar: 'لديك مقالة اشتراك جديدة',
+  fi: 'Sinulla on uusi tilausartikkeli',
+  it: 'Hai un nuovo articolo in abbonamento',
+  et: 'Sul on uus tellimusartikkel',
+  ru: 'У вас новая статья по подписке',
+  fr: 'Vous avez un nouvel article d’abonnement',
+  pt: 'Tens um novo artigo de subscrição',
+  es: 'Tienes un nuevo artículo de suscripción',
+  ja: '新しい購読記事があります',
+  zh: '你有一篇新的订阅文章',
+};
+
+const SUBSCRIPTION_EPISODE_NOTIFICATION_MESSAGE: NotificationMessage = {
+  en: 'You have a new subscription episode',
+  de: 'Du hast eine neue Abo-Folge',
+  ar: 'لديك حلقة اشتراك جديدة',
+  fi: 'Sinulla on uusi tilausjakso',
+  it: 'Hai un nuovo episodio in abbonamento',
+  et: 'Sul on uus tellimusosa',
+  ru: 'У вас новый выпуск по подписке',
+  fr: 'Vous avez un nouvel épisode d’abonnement',
+  pt: 'Tens um novo episódio de subscrição',
+  es: 'Tienes un nuevo episodio de suscripción',
+  ja: '新しい購読エピソードがあります',
+  zh: '你有一集新的订阅内容',
+};
+
 /**
  * Global hook: builds subscription search prefixes into atoms and, when
  * notification permission is granted, registers NOTIFICATION_ADD for
@@ -124,7 +156,7 @@ export function useSubscriptionNotificationRegistration() {
       notificationId: string;
       link: string;
       image: string;
-      message: { en: string };
+      message: NotificationMessage;
       filters: {
         service: string;
         identifier: string;
@@ -140,7 +172,7 @@ export function useSubscriptionNotificationRegistration() {
         notificationId: `subwire-subscription-articles-${groupId}`,
         link: `qortal://app/${appName}/publication/{name}/{identifier}`,
         image: '/arbitrary/THUMBNAIL/Subwire/qortal_avatar?async=true',
-        message: { en: 'You have a new subscription article' },
+        message: SUBSCRIPTION_ARTICLE_NOTIFICATION_MESSAGE,
         filters: {
           ...baseFilters,
           identifier: prefix,
@@ -154,7 +186,7 @@ export function useSubscriptionNotificationRegistration() {
         notificationId: `subwire-subscription-episodes-${groupId}`,
         link: `qortal://app/${appName}/publication/{name}/{identifier}`,
         image: '/arbitrary/THUMBNAIL/Subwire/qortal_avatar?async=true',
-        message: { en: 'You have a new subscription episode' },
+        message: SUBSCRIPTION_EPISODE_NOTIFICATION_MESSAGE,
         filters: {
           ...baseFilters,
           identifier: prefix,

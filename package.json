@@ -26,7 +26,7 @@
     "localforage": "^1.10.0",
     "marked": "^17.0.1",
     "mediainfo.js": "^0.3.6",
-    "qapp-core": "^1.0.77",
+    "qapp-core": "file:../qapp-core/qapp-core-1.0.77.tgz",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",

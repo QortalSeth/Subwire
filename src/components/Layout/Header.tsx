@@ -40,6 +40,8 @@ import {
   isLoadingUserNamesAtom,
 } from '../../state/global/userNames';
 
+import logoImg from '../../assets/subwirelogo.svg';
+
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
   boxShadow:
@@ -312,7 +314,21 @@ export const Header = () => {
     <StyledAppBar position="sticky">
       <StyledToolbar>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Logo to="/">SubWire</Logo>
+          <Logo to="/" sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box
+              component="img"
+              src={logoImg}
+              alt="SubWire"
+              sx={(theme) => ({
+                height: 32,
+                width: 'auto',
+                display: 'block',
+                marginRight: '5px',
+                [theme.breakpoints.down('sm')]: { height: 24 },
+              })}
+            />
+            SubWire
+          </Logo>
           {showEnableHubNotifications && (
             <Button
               variant="text"
@@ -332,7 +348,9 @@ export const Header = () => {
                 fontSize: { xs: '0.75rem', sm: '0.8125rem' },
               }}
             >
-              {isEnablingHubNotifications ? 'Enabling…' : 'Enable Hub notification'}
+              {isEnablingHubNotifications
+                ? 'Enabling…'
+                : 'Enable Hub notification'}
             </Button>
           )}
         </Box>
