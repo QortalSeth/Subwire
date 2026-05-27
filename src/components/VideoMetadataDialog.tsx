@@ -22,6 +22,7 @@ import { generateVideoExtracts, compressImage } from '../utils/videoUtils';
 import { categories, subCategories } from '../constants/qtubeCategories';
 import { VideoMetadata } from '../utils/articleQdn';
 import qtubeLogoImg from '../assets/qtube.webp';
+import { ensureImageDataUrl } from '../utils/imageDataUrl';
 
 const StyledDialog = styled(Dialog)(({ theme }) => ({
   '& .MuiDialog-paper': {
@@ -293,19 +294,15 @@ export const VideoMetadataDialog = ({
         .then(async (result) => {
           setDuration(Math.floor(result.duration));
 
-          // Compress all extracted frames and store as base64 without data URL prefix
+          // QTube stores thumbnails as complete data URLs and renders them directly.
           const compressedFrames: string[] = [];
           for (const frame of result.extracts) {
             try {
               const compressed = await compressImage(frame);
-              // Remove data URL prefix
-              const base64 = compressed.split(',')[1];
-              compressedFrames.push(base64);
+              compressedFrames.push(ensureImageDataUrl(compressed) || '');
             } catch (err) {
               console.error('Failed to compress frame:', err);
-              // Use original if compression fails, remove prefix
-              const base64 = frame.split(',')[1];
-              compressedFrames.push(base64);
+              compressedFrames.push(ensureImageDataUrl(frame) || '');
             }
           }
 
@@ -337,9 +334,7 @@ export const VideoMetadataDialog = ({
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         const compressed = await compressImage(dataUrl);
-        // Store as base64 without prefix
-        const base64 = compressed.split(',')[1];
-        setCustomThumbnail(base64);
+        setCustomThumbnail(ensureImageDataUrl(compressed) || null);
         setSelectedThumbnailIndex(-1);
       };
       reader.readAsDataURL(file);
@@ -631,7 +626,7 @@ export const VideoMetadataDialog = ({
                   onClick={() => setSelectedThumbnailIndex(index)}
                 >
                   <ThumbnailImage
-                    src={`data:image/webp;base64,${frame}`}
+                    src={ensureImageDataUrl(frame)}
                     alt={`Frame ${index + 1}`}
                   />
                   {selectedThumbnailIndex === index && (
@@ -647,7 +642,7 @@ export const VideoMetadataDialog = ({
                 {customThumbnail ? (
                   <>
                     <ThumbnailImage
-                      src={`data:image/webp;base64,${customThumbnail}`}
+                      src={ensureImageDataUrl(customThumbnail)}
                       alt="Custom thumbnail"
                     />
                     {selectedThumbnailIndex === -1 && (

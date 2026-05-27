@@ -59,6 +59,7 @@ import { useDecryptArticle } from '../hooks/useDecryptArticle';
 import { SERVICE_DOCUMENT } from '../constants/qdn';
 import { deleteDraft, generateDraftId } from '../utils/draftStorage';
 import { marked } from 'marked';
+import { ensureImageDataUrl } from '../utils/imageDataUrl';
 
 const EditorContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
@@ -476,11 +477,7 @@ export const EditArticlePage = () => {
       articleData.coverImage?.src ?? decryptedContent?.coverImage?.src;
     if (coverSrc) {
       const coverUrl =
-        typeof coverSrc === 'string'
-          ? coverSrc.startsWith('data:')
-            ? coverSrc
-            : `data:image/webp;base64,${coverSrc}`
-          : '';
+        typeof coverSrc === 'string' ? ensureImageDataUrl(coverSrc) || '' : '';
       setExistingCoverImage(coverUrl);
       setCoverImagePreview(coverUrl);
     }
@@ -1366,7 +1363,9 @@ export const EditArticlePage = () => {
                           videoRef={videoRef}
                           poster={
                             videosWithMetadata[0].metadata.videoImage
-                              ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
+                              ? ensureImageDataUrl(
+                                  videosWithMetadata[0].metadata.videoImage
+                                )
                               : undefined
                           }
                           qortalVideoResource={{

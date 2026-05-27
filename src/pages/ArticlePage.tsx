@@ -57,6 +57,7 @@ import { copyToClipboard } from '../utils/clipboard';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
 import { useAtomValue } from 'jotai';
 import { notificationPermissionAtom } from '../state/global/system';
+import { ensureImageDataUrl } from '../utils/imageDataUrl';
 
 declare const qortalRequest: (params: {
   action: string;
@@ -970,7 +971,9 @@ export const ArticlePage = () => {
                   videoRef={videoRef}
                   poster={
                     videosWithMetadata[0].metadata.videoImage
-                      ? `data:image/webp;base64,${videosWithMetadata[0].metadata.videoImage}`
+                      ? ensureImageDataUrl(
+                          videosWithMetadata[0].metadata.videoImage
+                        )
                       : undefined
                   }
                   qortalVideoResource={{

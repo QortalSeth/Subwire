@@ -238,8 +238,8 @@ export interface VideoMetadata {
   title: string;
   description: string;
   duration?: number;
-  videoImage?: string; // Compressed base64 image
-  extracts?: string[]; // 4 compressed base64 images
+  videoImage?: string; // Compressed image data URL
+  extracts?: string[]; // 4 compressed image data URLs
   category: number; // Required
   subcategory?: number;
 }
@@ -252,13 +252,13 @@ export interface VideoMetadataDocument {
   version: number;
   fullDescription: string;
   htmlDescription: string;
-  videoImage?: string; // base64 encoded thumbnail
+  videoImage?: string; // thumbnail data URL
   videoReference: {
     name: string;
     identifier: string;
     service: string;
   };
-  extracts?: string[]; // Additional thumbnails/previews as base64
+  extracts?: string[]; // Additional thumbnail/preview data URLs
   commentsId?: string;
   category: number; // Required
   subcategory?: number;
