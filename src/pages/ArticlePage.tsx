@@ -58,6 +58,7 @@ import { useDecryptArticle } from '../hooks/useDecryptArticle';
 import { useAtomValue } from 'jotai';
 import { notificationPermissionAtom } from '../state/global/system';
 import { ensureImageDataUrl } from '../utils/imageDataUrl';
+import { formatBytes } from '../utils/videoUtils';
 
 declare const qortalRequest: (params: {
   action: string;
@@ -1004,7 +1005,18 @@ export const ArticlePage = () => {
                 />
               </VideoPlayerContainer>
             )}
-
+          {videosWithMetadata[0]?.metadata?.fileSize && (
+            <Box sx={{ mt: 1, textAlign: 'center' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '18px' }}
+              >
+                File size:{' '}
+                {formatBytes(videosWithMetadata[0].metadata.fileSize)}
+              </Typography>
+            </Box>
+          )}
           {/* Audio Player - PROMINENT for episodes with audio */}
           {isLoadingAudioMetadata && audioFiles && audioFiles.length > 0 && (
             <Box sx={{ mb: 3 }}>
@@ -1019,14 +1031,28 @@ export const ArticlePage = () => {
           {!isLoadingAudioMetadata &&
             audiosWithMetadata &&
             audiosWithMetadata.length > 0 && (
-              <AudioPlayerDisplay
-                articleTitle={displayArticleData.title}
-                audioMetadata={audiosWithMetadata[0].metadata}
-                encryptionKey={audiosWithMetadata[0].key}
-                encryptionIv={audiosWithMetadata[0].iv}
-                mimeType={audiosWithMetadata[0].mimeType}
-              />
+              <Box sx={{ mb: 3 }}>
+                <AudioPlayerDisplay
+                  articleTitle={displayArticleData.title}
+                  audioMetadata={audiosWithMetadata[0].metadata}
+                  encryptionKey={audiosWithMetadata[0].key}
+                  encryptionIv={audiosWithMetadata[0].iv}
+                  mimeType={audiosWithMetadata[0].mimeType}
+                />
+              </Box>
             )}
+          {audiosWithMetadata[0]?.metadata?.fileSize && (
+            <Box sx={{ mt: 1, textAlign: 'center' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: '18px' }}
+              >
+                File size:{' '}
+                {formatBytes(audiosWithMetadata[0].metadata.fileSize)}
+              </Typography>
+            </Box>
+          )}
 
           {/* Article Content */}
           <Container maxWidth="md" sx={{ py: 4 }}>
@@ -1094,16 +1120,23 @@ export const ArticlePage = () => {
 
                     // Handle qortal://use-group/action-join/groupid-NNN
                     if (qortalHref.startsWith('qortal://use-')) {
-                      const withoutScheme = qortalHref.replace(/^qortal:\/\//, '');
+                      const withoutScheme = qortalHref.replace(
+                        /^qortal:\/\//,
+                        ''
+                      );
                       const parts = withoutScheme.split('/');
                       // parts[0] = "use-group", parts[1] = "action-join", parts[2] = "groupid-NNN"
                       const actionPart = parts[1]; // e.g. "action-join"
-                      const idPart = parts[2];     // e.g. "groupid-820"
+                      const idPart = parts[2]; // e.g. "groupid-820"
                       const action = actionPart?.split('-')[1]; // "join"
-                      const groupId = idPart ? parseInt(idPart.split('-')[1], 10) : NaN;
+                      const groupId = idPart
+                        ? parseInt(idPart.split('-')[1], 10)
+                        : NaN;
 
                       if (action === 'join' && !isNaN(groupId)) {
-                        qortalRequest({ action: 'JOIN_GROUP', groupId }).catch(console.error);
+                        qortalRequest({ action: 'JOIN_GROUP', groupId }).catch(
+                          console.error
+                        );
                         return;
                       }
                     }
@@ -1118,7 +1151,10 @@ export const ArticlePage = () => {
 
                   // Regular external links — copy to clipboard on click
                   const href = link.getAttribute('href');
-                  if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                  if (
+                    href &&
+                    (href.startsWith('http://') || href.startsWith('https://'))
+                  ) {
                     e.preventDefault();
                     copyToClipboard(href)
                       .then(() => showSuccess('Link copied to clipboard!'))

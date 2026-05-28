@@ -474,113 +474,109 @@ export const Header = () => {
                   },
                 }}
               >
-                {showNameList ? (
-                  <>
-                    {/* Name list view */}
-                    <MenuItem onClick={handleBackToMenu}>
-                      <ArrowDownIcon
-                        sx={{ fontSize: 16, mr: 1, transform: 'rotate(90deg)' }}
-                      />
-                      <Typography variant="body2">Back</Typography>
+                {showNameList ? [
+                  /* Name list view */
+                  <MenuItem key="back" onClick={handleBackToMenu}>
+                    <ArrowDownIcon
+                      sx={{ fontSize: 16, mr: 1, transform: 'rotate(90deg)' }}
+                    />
+                    <Typography variant="body2">Back</Typography>
+                  </MenuItem>,
+                  <Divider key="divider1" />,
+                  ...(isLoadingNames ? [
+                    <MenuItem key="loading">
+                      <CircularProgress size={20} />
                     </MenuItem>
-                    <Divider />
-                    {isLoadingNames ? (
-                      <MenuItem>
-                        <CircularProgress size={20} />
-                      </MenuItem>
-                    ) : names.length === 0 ? (
-                      <MenuItem disabled>
-                        <Typography variant="body2" color="text.secondary">
-                          No names found
-                        </Typography>
-                      </MenuItem>
-                    ) : (
-                      names.map((name) => {
-                        const isPrimary = name === auth?.primaryName;
-                        const isCurrent = name === auth?.name;
+                  ] : names.length === 0 ? [
+                    <MenuItem key="no-names" disabled>
+                      <Typography variant="body2" color="text.secondary">
+                        No names found
+                      </Typography>
+                    </MenuItem>
+                  ] : names.map((name) => {
+                    const isPrimary = name === auth?.primaryName;
+                    const isCurrent = name === auth?.name;
 
-                        return (
-                          <MenuItem
-                            key={name}
-                            onClick={() => handleNameSwitch(name)}
-                            disabled={isSwitching}
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                flex: 1,
-                              }}
-                            >
-                              <Typography
-                                variant="body2"
-                                fontWeight={isCurrent ? 700 : 400}
-                              >
-                                @{name}
-                              </Typography>
-                              {isPrimary && (
-                                <PrimaryBadge
-                                  icon={<StarIcon />}
-                                  label="Primary"
-                                  size="small"
-                                />
-                              )}
-                            </Box>
-                            {isCurrent && (
-                              <CheckIcon
-                                sx={{ fontSize: 18, color: 'primary.main' }}
-                              />
-                            )}
-                          </MenuItem>
-                        );
-                      })
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {/* Main menu view */}
-                    {auth?.name && (
-                      <MenuItem onClick={handleShowNameList}>
+                    return (
+                      <MenuItem
+                        key={name}
+                        onClick={() => handleNameSwitch(name)}
+                        disabled={isSwitching}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
                         <Box
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'space-between',
-                            width: '100%',
+                            gap: 1,
+                            flex: 1,
                           }}
                         >
-                          <Typography variant="body2" fontWeight={600}>
-                            {auth.name}
+                          <Typography
+                            variant="body2"
+                            fontWeight={isCurrent ? 700 : 400}
+                          >
+                            @{name}
                           </Typography>
-                          <ArrowDownIcon sx={{ fontSize: 16 }} />
+                          {isPrimary && (
+                            <PrimaryBadge
+                              icon={<StarIcon />}
+                              label="Primary"
+                              size="small"
+                            />
+                          )}
                         </Box>
+                        {isCurrent && (
+                          <CheckIcon
+                            sx={{ fontSize: 18, color: 'primary.main' }}
+                          />
+                        )}
                       </MenuItem>
-                    )}
-                    <Divider />
-                    <MenuItem
-                      onClick={() => {
-                        handleMenuClose();
-                        navigate(`/author/${auth.name}`);
-                      }}
-                    >
-                      Profile
-                    </MenuItem>
-                    {/* <MenuItem
-                      onClick={() => {
-                        handleMenuClose();
-                        navigate('/my-publications');
-                      }}
-                    >
-                      My Publications
-                    </MenuItem> */}
-                  </>
-                )}
+                    );
+                  }))
+                ] : [
+                  /* Main menu view */
+                  ...(auth?.name ? [
+                    <MenuItem key="current-name" onClick={handleShowNameList}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          width: '100%',
+                        }}
+                      >
+                        <Typography variant="body2" fontWeight={600}>
+                          {auth.name}
+                        </Typography>
+                        <ArrowDownIcon sx={{ fontSize: 16 }} />
+                      </Box>
+                    </MenuItem>,
+                    <Divider key="divider2" />
+                  ] : []),
+                  <MenuItem
+                    key="profile"
+                    onClick={() => {
+                      handleMenuClose();
+                      navigate(`/author/${auth.name}`);
+                    }}
+                  >
+                    Profile
+                  </MenuItem>
+                  /* <MenuItem
+                    key="my-publications"
+                    onClick={() => {
+                      handleMenuClose();
+                      navigate('/my-publications');
+                    }}
+                  >
+                    My Publications
+                  </MenuItem> */
+                ]}
               </Menu>
             </>
           )}

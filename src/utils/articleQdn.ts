@@ -237,6 +237,7 @@ export interface ArticleImage {
 export interface VideoMetadata {
   title: string;
   description: string;
+  htmlDescription?: string; // Rich text HTML description for Q-Tube compatibility
   duration?: number;
   videoImage?: string; // Compressed image data URL
   extracts?: string[]; // 4 compressed image data URLs
@@ -1138,9 +1139,9 @@ export async function publishArticle({
             const videoMetadataDoc: VideoMetadataDocument = {
               title: attachment.videoMetadata.title,
               version: 1,
-              htmlDescription: attachment.videoMetadata.description || '',
+              htmlDescription: attachment.videoMetadata.htmlDescription || attachment.videoMetadata.description || '',
               fullDescription: stripHtmlTags(
-                attachment.videoMetadata.description || ''
+                attachment.videoMetadata.htmlDescription || attachment.videoMetadata.description || ''
               ),
               videoReference: {
                 name: userName,

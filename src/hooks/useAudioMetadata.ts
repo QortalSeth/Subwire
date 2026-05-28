@@ -150,10 +150,14 @@ export function useAudioMetadata(
                 ...(audio.mimeType && { mimeType: audio.mimeType }),
               });
             } else {
-              console.warn(
-                'useAudioMetadata: No resource found or invalid response:',
-                response
-              );
+              // Silently handle missing metadata - it's expected for some media items
+              // Only log in development for debugging
+              if (import.meta.env.DEV) {
+                console.debug(
+                  'useAudioMetadata: No metadata found for audio:',
+                  audio.identifier
+                );
+              }
             }
           } catch (error) {
             console.error('Error fetching audio metadata:', error);

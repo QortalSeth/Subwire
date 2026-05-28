@@ -13,6 +13,7 @@ import {
   OutlinedInput,
   SelectChangeEvent,
 } from '@mui/material';
+import { TextEditor } from './TextEditor/TextEditor';
 import { styled } from '@mui/system';
 import { useState, useEffect, useRef } from 'react';
 import CloseIcon from '@mui/icons-material/Close';
@@ -258,6 +259,7 @@ export const VideoMetadataDialog = ({
 }: VideoMetadataDialogProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [htmlDescription, setHtmlDescription] = useState('');
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const [extractedFrames, setExtractedFrames] = useState<string[]>([]);
   const [selectedThumbnailIndex, setSelectedThumbnailIndex] = useState<
@@ -277,6 +279,7 @@ export const VideoMetadataDialog = ({
       const nameWithoutExt = videoFile.name.replace(/\.[^/.]+$/, '');
       setTitle(nameWithoutExt);
       setDescription('');
+      setHtmlDescription('');
       setDuration(undefined);
       setExtractedFrames([]);
       setSelectedThumbnailIndex(0);
@@ -389,6 +392,7 @@ export const VideoMetadataDialog = ({
       onSave({
         title: nameWithoutExt,
         description: '',
+        htmlDescription: '',
         duration,
         videoImage,
         extracts: extractedFrames,
@@ -400,6 +404,7 @@ export const VideoMetadataDialog = ({
       onSave({
         title: title.trim(),
         description: description.trim(),
+        htmlDescription: htmlDescription.trim(),
         duration,
         videoImage,
         extracts: extractedFrames,
@@ -411,6 +416,7 @@ export const VideoMetadataDialog = ({
     // Reset form state
     setTitle('');
     setDescription('');
+    setHtmlDescription('');
     setDuration(undefined);
     setExtractedFrames([]);
     setSelectedThumbnailIndex(0);
@@ -429,6 +435,7 @@ export const VideoMetadataDialog = ({
   const handleCancel = () => {
     setTitle('');
     setDescription('');
+    setHtmlDescription('');
     setDuration(undefined);
     setExtractedFrames([]);
     setSelectedThumbnailIndex(0);
@@ -523,27 +530,47 @@ export const VideoMetadataDialog = ({
             </Box>
 
             <Box>
-              <TextField
-                label="Description (Optional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Describe your video content"
-                variant="outlined"
+              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                Description (Optional)
+              </Typography>
+              <Box
                 sx={{
-                  '& .MuiOutlinedInput-root': {
+                  '& .ql-editor': {
+                    minHeight: '120px',
                     borderRadius: 2,
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '&:hover': {
                       borderColor: 'primary.main',
                     },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    '&.ql-focused': {
                       borderWidth: '2px',
+                      borderColor: 'primary.main',
                     },
                   },
+                  '& .ql-toolbar': {
+                    borderRadius: '8px 8px 0 0',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderBottom: 'none',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                    },
+                  },
+                  '& .ql-container': {
+                    borderRadius: '0 0 8px 8px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderTop: 'none',
+                    fontSize: '0.875rem',
+                  },
                 }}
-              />
+              >
+                <TextEditor
+                  inlineContent={htmlDescription}
+                  setInlineContent={setHtmlDescription}
+                />
+              </Box>
             </Box>
 
             <FormControl fullWidth required>

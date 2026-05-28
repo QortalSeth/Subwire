@@ -10,7 +10,10 @@ import { QortalMetadata } from 'qapp-core';
 import { formatDistanceToNow } from 'date-fns';
 import { LazyImage } from './LazyImage';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
+import { useVideoMetadata } from '../hooks/useVideoMetadata';
+import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { LoaderItem } from './LoaderState';
+import { formatBytes } from '../utils/videoUtils';
 
 const StyledCard = styled(Card)(({ theme }) => ({
   display: 'flex',
@@ -244,11 +247,33 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
 
   // Determine if there's video or audio content (only for non-encrypted or partial encrypted)
   const hasVideo =
-    !isEncrypted && displayData.media && displayData.media.length > 0;
+    displayData.media && displayData.media.length > 0;
   const hasAudio =
     hasVideo &&
     displayData.media &&
     displayData.media.some((v: any) => v.mimeType?.startsWith('audio/'));
+
+  // Fetch metadata for video/audio to get file size
+  // Only fetch for public content (non-encrypted) since that's when we show the icon
+  const videoMedia = hasVideo && !isEncrypted
+    ? displayData.media?.filter((v: any) => !v.mimeType?.startsWith('audio/')).slice(0, 1)
+    : [];
+  const audioMedia = hasAudio && !isEncrypted
+    ? displayData.media?.filter((v: any) => v.mimeType?.startsWith('audio/')).slice(0, 1)
+    : [];
+
+  const { videosWithMetadata } = useVideoMetadata(
+    videoMedia,
+    displayData.groupId
+  );
+  const { audiosWithMetadata } = useAudioMetadata(
+    audioMedia,
+    displayData.groupId
+  );
+
+  // Get file size from metadata (use first video/audio if multiple)
+  const videoFileSize = videosWithMetadata.length > 0 ? videosWithMetadata[0].metadata.fileSize : undefined;
+  const audioFileSize = audiosWithMetadata.length > 0 ? audiosWithMetadata[0].metadata.fileSize : undefined;
 
   // For fully encrypted articles without public metadata, show a lock badge
   // const isFullyEncrypted = isEncrypted && !hasPublicMetadata; // Already defined above
@@ -302,12 +327,18 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
           {hasAudio ? (
             <>
               <AudioIcon sx={{ fontSize: 16 }} />
-              <span>Audio</span>
+              <Box sx={{ marginLeft: '5px' }}>Audio</Box>
+              {audioFileSize && <span>{formatBytes(audioFileSize)}</span>}
             </>
           ) : (
             <>
               <VideoIcon sx={{ fontSize: 16 }} />
               <span>Video</span>
+              {videoFileSize && (
+                <Box sx={{ marginLeft: '5px' }}>
+                  {formatBytes(videoFileSize)}
+                </Box>
+              )}
             </>
           )}
         </Box>
