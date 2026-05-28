@@ -55,6 +55,7 @@ export function useVideoMetadata(
     | undefined,
   groupId?: number
 ): { videosWithMetadata: VideoWithMetadata[]; isLoading: boolean } {
+  
   const [videosWithMetadata, setVideosWithMetadata] = useState<
     VideoWithMetadata[]
   >([]);
@@ -158,10 +159,14 @@ export function useVideoMetadata(
                 ...(video.mimeType && { mimeType: video.mimeType }),
               });
             } else {
-              console.warn(
-                'useVideoMetadata: No resource found or invalid response:',
-                response
-              );
+              // Silently handle missing metadata - it's expected for some media items
+              // Only log in development for debugging
+              if (import.meta.env.DEV) {
+                console.debug(
+                  'useVideoMetadata: No metadata found for video:',
+                  video.identifier
+                );
+              }
             }
           } catch (error) {
             console.error('Error fetching video metadata:', error);
