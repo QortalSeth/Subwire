@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Container,
@@ -179,7 +179,7 @@ interface UserResultCardProps {
   onClick: () => void;
 }
 
-function UserResultCard({
+const UserResultCard = memo(function UserResultCard({
   userName,
   currentUserName,
   onClick,
@@ -240,7 +240,7 @@ function UserResultCard({
       )}
     </UserResultItem>
   );
-}
+});
 
 export const DiscoverPage = () => {
   const navigate = useNavigate();
@@ -273,6 +273,11 @@ export const DiscoverPage = () => {
     null
   );
 
+  // Track previous values to detect when they actually change
+  const prevGroupOwnerNamesRef = useRef<string[] | undefined>(undefined);
+  const prevSearchPrefixRef = useRef<string | null>(null);
+  const prevEpisodeSearchPrefixRef = useRef<string | null>(null);
+  
   // Build the search prefix for articles and episodes
   useEffect(() => {
     if (isLoadingGroupOwnerNames) return;
@@ -286,15 +291,29 @@ export const DiscoverPage = () => {
           ENTITY_ARTICLE,
           ENTITY_ROOT
         );
-        setSearchPrefix(prefix);
+        
+        // Only update if prefix actually changed
+        if (prefix !== prevSearchPrefixRef.current) {
+          prevSearchPrefixRef.current = prefix;
+          setSearchPrefix(prefix);
+        }
 
         const episodePrefix = await identifierOperations.buildSearchPrefix(
           ENTITY_EPISODE,
           ENTITY_ROOT
         );
-        setEpisodeSearchPrefix(episodePrefix);
+        
+        // Only update if episode prefix actually changed
+        if (episodePrefix !== prevEpisodeSearchPrefixRef.current) {
+          prevEpisodeSearchPrefixRef.current = episodePrefix;
+          setEpisodeSearchPrefix(episodePrefix);
+        }
 
-        setPrimaryNamesGroup(groupOwnerNames);
+        // Only update if groupOwnerNames actually changed
+        if (groupOwnerNames !== prevGroupOwnerNamesRef.current) {
+          prevGroupOwnerNamesRef.current = groupOwnerNames;
+          setPrimaryNamesGroup(groupOwnerNames);
+        }
         // Group article/episode prefixes are built globally in useSubscriptionNotificationRegistration
       } catch (error) {
         console.error('Failed to build search prefix:', error);
@@ -306,7 +325,6 @@ export const DiscoverPage = () => {
     identifierOperations,
     isLoadingGroupOwnerNames,
     memberGroups,
-    groupOwnerNames,
     selectedTab,
   ]);
 
@@ -667,8 +685,6 @@ export const DiscoverPage = () => {
               value={selectedTab}
               onChange={(_, newValue) => {
                 setSelectedTab(newValue);
-                setSearchPrefix(null);
-                setEpisodeSearchPrefix(null);
               }}
               variant="scrollable"
               scrollButtons="auto"
@@ -787,6 +803,7 @@ export const DiscoverPage = () => {
               }}
             >
               <ResourceListDisplay
+                key={selectedTab}
                 styles={{
                   gap: 20,
                 }}

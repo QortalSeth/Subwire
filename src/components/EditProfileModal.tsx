@@ -246,6 +246,9 @@ export function EditProfileModal({
     }
   }, [open, currentProfile]);
 
+  // Track previous privateGroups to detect when they actually change
+  const prevPrivateGroupsRef = useRef<string>('');
+  
   // Check which private groups have subscriptions enabled
   useEffect(() => {
     const checkGroupSubscriptions = async () => {
@@ -288,7 +291,14 @@ export function EditProfileModal({
     };
 
     if (open) {
-      checkGroupSubscriptions();
+      // Create a string representation of privateGroups to detect actual changes
+      const currentGroupsString = JSON.stringify(privateGroups.map(g => g.groupId));
+      
+      // Only check if groups actually changed
+      if (currentGroupsString !== prevPrivateGroupsRef.current) {
+        prevPrivateGroupsRef.current = currentGroupsString;
+        checkGroupSubscriptions();
+      }
     }
   }, [open, privateGroups, identifierOperations]);
 

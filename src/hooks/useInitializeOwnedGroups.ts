@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
@@ -17,7 +17,18 @@ export const useInitializeOwnedGroups = () => {
   const [, setIsLoading] = useAtom(isLoadingOwnedGroupsAtom);
   const [, setError] = useAtom(ownedGroupsErrorAtom);
 
+  // Track previous values to prevent infinite re-renders
+  const prevAuthAddressRef = useRef<string>('');
+
   useEffect(() => {
+    const currentAuthAddress = auth?.address || '';
+
+    if (currentAuthAddress === prevAuthAddressRef.current) {
+      return;
+    }
+
+    prevAuthAddressRef.current = currentAuthAddress;
+
     const fetchOwnedGroups = async () => {
       if (!auth?.address) {
         setOwnedGroups([]);

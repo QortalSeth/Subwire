@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
@@ -24,7 +24,24 @@ export const useInitializeProfile = () => {
   const setIsLoadingProfile = useSetAtom(isLoadingProfileAtom);
   const setProfileName = useSetAtom(profileNameAtom);
 
+  // Track previous values to prevent infinite re-renders
+  const prevAuthNameRef = useRef<string>('');
+  const prevIdentifierOperationsRef = useRef<string>('');
+
   useEffect(() => {
+    const currentAuthName = auth?.name || '';
+    const currentIdentifierOperations = identifierOperations ? 'present' : '';
+
+    if (
+      currentAuthName === prevAuthNameRef.current &&
+      currentIdentifierOperations === prevIdentifierOperationsRef.current
+    ) {
+      return;
+    }
+
+    prevAuthNameRef.current = currentAuthName;
+    prevIdentifierOperationsRef.current = currentIdentifierOperations;
+
     const initializeProfile = async () => {
       // Only try to load if user is authenticated and has a name
       if (!auth?.name) {

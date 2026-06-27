@@ -4,16 +4,19 @@ import {
   PlayCircleOutline as VideoIcon,
   AudiotrackOutlined as AudioIcon,
   Lock as LockIcon,
+  LockOpen as LockOpenIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { QortalMetadata } from 'qapp-core';
+import { QortalMetadata, useGlobal } from 'qapp-core';
 import { formatDistanceToNow } from 'date-fns';
+import { useAtomValue } from 'jotai';
 import { LazyImage } from './LazyImage';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { LoaderItem } from './LoaderState';
 import { formatBytes } from '../utils/videoUtils';
+import { ownedGroupsMapAtom } from '../state/global/profile';
 
 const StyledCard = styled(Card)(({ theme }) => ({
   display: 'flex',
@@ -117,6 +120,70 @@ interface ArticleCardProps {
 export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { auth } = useGlobal();
+  const ownedGroupsMap = useAtomValue(ownedGroupsMapAtom);
+
+  // ALL hooks must be called before any early returns (React Rules of Hooks)
+  // Decrypt encrypted content inside the component (like example-app does)
+  const { decryptedContent, isDecrypting } = useDecryptArticle(data);
+
+  // Check if this is an encrypted article
+  const isEncrypted = !!(data?.encryptedContent && data?.groupId);
+
+  // Check if this publication belongs to the user
+  // For encrypted/subscription articles: check if groupId is in ownedGroupsMap
+  // For public articles: check if author name matches current user's name
+  const isOwnedPublication = isEncrypted
+    ? ownedGroupsMap && data?.groupId
+      ? ownedGroupsMap.has(data.groupId)
+      : false
+    : auth?.name && qortalMetadata?.name
+      ? auth.name === qortalMetadata.name
+      : false;
+
+  // For fully encrypted articles, show skeleton while decrypting
+  const hasPublicMetadata = isEncrypted && !!data?.title; // Partial encryption
+  const isFullyEncrypted = isEncrypted && !hasPublicMetadata;
+
+  // Merge decrypted content with original data (for partial encryption)
+  const displayData =
+    isEncrypted && decryptedContent
+      ? {
+          ...data,
+          title: decryptedContent.title || data?.title,
+          subtitle: decryptedContent.subtitle || data?.subtitle,
+          coverImage: decryptedContent.coverImage || data?.coverImage,
+          tags: decryptedContent.tags || data?.tags,
+          media: decryptedContent.media || data?.media,
+        }
+      : data;
+
+  // Determine if there's video or audio content (only for non-encrypted or partial encrypted)
+  const hasVideo =
+    displayData?.media && displayData.media.length > 0;
+  const hasAudio =
+    hasVideo &&
+    displayData?.media &&
+    displayData.media.some((v: any) => v.mimeType?.startsWith('audio/'));
+
+  // Fetch metadata for video/audio to get file size
+  // Only fetch for public content (non-encrypted) since that's when we show the icon
+  const videoMedia = hasVideo && !isEncrypted && displayData?.media
+    ? displayData.media.filter((v: any) => !v.mimeType?.startsWith('audio/')).slice(0, 1)
+    : [];
+  const audioMedia = hasAudio && !isEncrypted && displayData?.media
+    ? displayData.media.filter((v: any) => v.mimeType?.startsWith('audio/')).slice(0, 1)
+    : [];
+
+  // Hooks must be called unconditionally - pass empty arrays as fallback
+  const { videosWithMetadata } = useVideoMetadata(
+    videoMedia,
+    displayData?.groupId
+  );
+  const { audiosWithMetadata } = useAudioMetadata(
+    audioMedia,
+    displayData?.groupId
+  );
 
   // Safety check: if no data, show a minimal card with author info
   if (!data) {
@@ -183,9 +250,12 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
     );
   }
 
-  // Decrypt encrypted content inside the component (like example-app does)
-  const { decryptedContent, isDecrypting } = useDecryptArticle(data);
+  // Show skeleton loader while decrypting ANY encrypted articles (full or partial)
+  if (isEncrypted && isDecrypting) {
+    return <LoaderItem />;
+  }
 
+  // Now safe to use displayData after all hooks and early returns
   const handleClick = () => {
     navigate(
       `/publication/${qortalMetadata.name}/${qortalMetadata.identifier}`,
@@ -198,30 +268,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
     navigate(`/author/${qortalMetadata.name}`);
   };
 
-  // Check if this is an encrypted article
-  const isEncrypted = !!(data.encryptedContent && data.groupId);
-
-  // For fully encrypted articles, show skeleton while decrypting
-  const hasPublicMetadata = isEncrypted && !!data.title; // Partial encryption
-  const isFullyEncrypted = isEncrypted && !hasPublicMetadata;
-
-  // Show skeleton loader while decrypting ANY encrypted articles (full or partial)
-  if (isEncrypted && isDecrypting) {
-    return <LoaderItem />;
-  }
-
-  // Merge decrypted content with original data (for partial encryption)
-  const displayData =
-    isEncrypted && decryptedContent
-      ? {
-          ...data,
-          title: decryptedContent.title || data.title,
-          subtitle: decryptedContent.subtitle || data.subtitle,
-          coverImage: decryptedContent.coverImage || data.coverImage,
-          tags: decryptedContent.tags || data.tags,
-          media: decryptedContent.media || data.media,
-        }
-      : data;
   // Use fallback values for encrypted content
   const displayTitle =
     displayData.title || (isEncrypted ? 'Subscription Content' : 'Untitled');
@@ -245,63 +291,52 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   // Get avatar URL
   const avatarUrl = `/arbitrary/THUMBNAIL/${qortalMetadata.name}/qortal_avatar?apiVersion=2`;
 
-  // Determine if there's video or audio content (only for non-encrypted or partial encrypted)
-  const hasVideo =
-    displayData.media && displayData.media.length > 0;
-  const hasAudio =
-    hasVideo &&
-    displayData.media &&
-    displayData.media.some((v: any) => v.mimeType?.startsWith('audio/'));
-
-  // Fetch metadata for video/audio to get file size
-  // Only fetch for public content (non-encrypted) since that's when we show the icon
-  const videoMedia = hasVideo && !isEncrypted
-    ? displayData.media?.filter((v: any) => !v.mimeType?.startsWith('audio/')).slice(0, 1)
-    : [];
-  const audioMedia = hasAudio && !isEncrypted
-    ? displayData.media?.filter((v: any) => v.mimeType?.startsWith('audio/')).slice(0, 1)
-    : [];
-
-  const { videosWithMetadata } = useVideoMetadata(
-    videoMedia,
-    displayData.groupId
-  );
-  const { audiosWithMetadata } = useAudioMetadata(
-    audioMedia,
-    displayData.groupId
-  );
-
   // Get file size from metadata (use first video/audio if multiple)
   const videoFileSize = videosWithMetadata.length > 0 ? videosWithMetadata[0].metadata.fileSize : undefined;
   const audioFileSize = audiosWithMetadata.length > 0 ? audiosWithMetadata[0].metadata.fileSize : undefined;
 
-  // For fully encrypted articles without public metadata, show a lock badge
-  // const isFullyEncrypted = isEncrypted && !hasPublicMetadata; // Already defined above
-
   return (
     <StyledCard onClick={handleClick} elevation={0}>
       {/* Media/Subscription indicator badges - positioned on card */}
-      {isEncrypted && (
+      {(isEncrypted || isOwnedPublication) && (
         <Box
           sx={{
             position: 'absolute',
             top: 12,
             right: 12,
-            backgroundColor: 'rgba(255, 193, 7, 0.9)',
+            backgroundColor: isOwnedPublication ? '#29B6F6' : 'rgba(255, 193, 7, 0.9)',
             backdropFilter: 'blur(4px)',
             borderRadius: '8px',
             padding: '6px 10px',
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
-            color: 'rgba(0, 0, 0, 0.87)',
+            color: isOwnedPublication ? 'white' : 'rgba(0, 0, 0, 0.87)',
             fontSize: '0.75rem',
             fontWeight: 600,
             zIndex: 2,
           }}
         >
-          <LockIcon sx={{ fontSize: 16 }} />
-          <span>Subscribers Only</span>
+          {isOwnedPublication ? (
+            <>
+              {isEncrypted ? (
+                <>
+                  <LockIcon sx={{ fontSize: 16 }} />
+                  <span>My Private Publication</span>
+                </>
+              ) : (
+                <>
+                  <LockOpenIcon sx={{ fontSize: 16 }} />
+                  <span>My Public Publication</span>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <LockIcon sx={{ fontSize: 16 }} />
+              <span>Subscribers Only</span>
+            </>
+          )}
         </Box>
       )}
 

@@ -452,8 +452,18 @@ export const WritePage = () => {
   );
   const [encryptMetadata, setEncryptMetadata] = useState(false);
 
+  // Track previous values to prevent infinite re-renders
+  const prevEncryptionPreferencesRef = useRef<string>('');
+  const prevEncryptMetadataPreferencesRef = useRef<string>('');
+
   // Load saved preference when component mounts or preferences/user changes
   useEffect(() => {
+    const currentPreferencesString = JSON.stringify(encryptionPreferences);
+    if (currentPreferencesString === prevEncryptionPreferencesRef.current) {
+      return;
+    }
+    prevEncryptionPreferencesRef.current = currentPreferencesString;
+
     if (hasSubscriptionGroup && userEncryptionKey) {
       const savedPref = encryptionPreferences[userEncryptionKey];
       // Load saved preference or default to false
@@ -463,12 +473,16 @@ export const WritePage = () => {
       // Reset to false if no subscription group
       setIsEncrypted(false);
     }
-    // Only run when dependencies change, not when isEncrypted changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasSubscriptionGroup, userEncryptionKey, encryptionPreferences]);
 
   // Load saved metadata encryption preference
   useEffect(() => {
+    const currentMetadataPreferencesString = JSON.stringify(encryptMetadataPreferences);
+    if (currentMetadataPreferencesString === prevEncryptMetadataPreferencesRef.current) {
+      return;
+    }
+    prevEncryptMetadataPreferencesRef.current = currentMetadataPreferencesString;
+
     if (hasSubscriptionGroup && userEncryptionKey && isEncrypted) {
       const savedMetadataPref = encryptMetadataPreferences[userEncryptionKey];
       // Load saved preference or default to false (keep metadata public)
@@ -477,7 +491,6 @@ export const WritePage = () => {
       // Reset to false if no subscription or not encrypted
       setEncryptMetadata(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hasSubscriptionGroup,
     userEncryptionKey,

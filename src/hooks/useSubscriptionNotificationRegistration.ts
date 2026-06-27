@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
@@ -6,7 +6,7 @@ import {
   groupArticleSearchPrefixesAtom,
   groupEpisodeSearchPrefixesAtom,
   isLoadingGroupOwnerNamesAtom,
-  mySubscriptionGroupsAtom,
+  memberGroupsAtom,
 } from '../state/global/profile';
 import { notificationPermissionAtom } from '../state/global/system';
 import {
@@ -57,7 +57,7 @@ const SUBSCRIPTION_EPISODE_NOTIFICATION_MESSAGE: NotificationMessage = {
 export function useSubscriptionNotificationRegistration() {
   const { identifierOperations } = useGlobal();
   const notificationPermission = useAtomValue(notificationPermissionAtom);
-  const memberGroups = useAtomValue(mySubscriptionGroupsAtom);
+  const memberGroups = useAtomValue(memberGroupsAtom);
   const primaryNamesGroup = useAtomValue(groupOwnerPrimaryNamesAtom);
   const isLoadingGroupOwnerNames = useAtomValue(isLoadingGroupOwnerNamesAtom);
   const groupArticleSearchPrefixes = useAtomValue(
@@ -73,6 +73,11 @@ export function useSubscriptionNotificationRegistration() {
     groupEpisodeSearchPrefixesAtom
   );
 
+  // Track previous values to detect when they actually change
+  const prevMemberGroupsRef = useRef<string>('');
+  const prevGroupArticlePrefixesRef = useRef<string>('');
+  const prevGroupEpisodePrefixesRef = useRef<string>('');
+  
   // Build group subscription prefixes and store in global atoms
   useEffect(() => {
     if (
@@ -84,9 +89,24 @@ export function useSubscriptionNotificationRegistration() {
     }
 
     const groupIds = Array.from(memberGroups.keys());
+    const groupIdsString = JSON.stringify(groupIds);
+    
+    // Only rebuild if groupIds actually changed
+    if (groupIdsString === prevMemberGroupsRef.current) {
+      return;
+    }
+    
+    prevMemberGroupsRef.current = groupIdsString;
+    
     if (groupIds.length === 0) {
-      setGroupArticleSearchPrefixes([]);
-      setGroupEpisodeSearchPrefixes([]);
+      if (prevGroupArticlePrefixesRef.current !== '[]') {
+        prevGroupArticlePrefixesRef.current = '[]';
+        setGroupArticleSearchPrefixes([]);
+      }
+      if (prevGroupEpisodePrefixesRef.current !== '[]') {
+        prevGroupEpisodePrefixesRef.current = '[]';
+        setGroupEpisodeSearchPrefixes([]);
+      }
       return;
     }
     let cancelled = false;
@@ -102,7 +122,12 @@ export function useSubscriptionNotificationRegistration() {
           )
         );
         if (cancelled) return;
-        setGroupArticleSearchPrefixes(groupArticlePrefixes);
+        
+        const articlePrefixesString = JSON.stringify(groupArticlePrefixes);
+        if (articlePrefixesString !== prevGroupArticlePrefixesRef.current) {
+          prevGroupArticlePrefixesRef.current = articlePrefixesString;
+          setGroupArticleSearchPrefixes(groupArticlePrefixes);
+        }
 
         const groupEpisodePrefixes = await Promise.all(
           groupIds.map((groupId) =>
@@ -114,7 +139,12 @@ export function useSubscriptionNotificationRegistration() {
           )
         );
         if (cancelled) return;
-        setGroupEpisodeSearchPrefixes(groupEpisodePrefixes);
+        
+        const episodePrefixesString = JSON.stringify(groupEpisodePrefixes);
+        if (episodePrefixesString !== prevGroupEpisodePrefixesRef.current) {
+          prevGroupEpisodePrefixesRef.current = episodePrefixesString;
+          setGroupEpisodeSearchPrefixes(groupEpisodePrefixes);
+        }
       } catch (err) {
         console.error('Failed to build subscription prefixes:', err);
         if (!cancelled) {
@@ -134,6 +164,9 @@ export function useSubscriptionNotificationRegistration() {
     setGroupEpisodeSearchPrefixes,
   ]);
 
+  // Track previous values for notification registration
+  const prevNotificationValuesRef = useRef<string>('');
+  
   // When permission is granted, register subscription notifications (global NOTIFICATION_ADD)
   useEffect(() => {
     if (!notificationPermission) return;
@@ -145,6 +178,22 @@ export function useSubscriptionNotificationRegistration() {
     ) {
       return;
     }
+    
+    // Create a string representation of all dependencies to detect actual changes
+    const currentValues = JSON.stringify({
+      memberGroupsSize: memberGroups.size,
+      primaryNamesGroupLength: primaryNamesGroup.length,
+      groupArticleSearchPrefixesLength: groupArticleSearchPrefixes.length,
+      groupEpisodeSearchPrefixesLength: groupEpisodeSearchPrefixes.length,
+    });
+    
+    // Only register if values actually changed
+    if (currentValues === prevNotificationValuesRef.current) {
+      return;
+    }
+    
+    prevNotificationValuesRef.current = currentValues;
+    
     const groupIds = Array.from(memberGroups.keys());
     const appName = 'subwire';
     const baseFilters = {

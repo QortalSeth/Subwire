@@ -447,6 +447,9 @@ export const ArticlePage = () => {
   const qortalMetadata = resource?.qortalMetadata;
   const notificationPermission = useAtomValue(notificationPermissionAtom);
 
+  // Track previous values to detect when they actually change
+  const prevNotificationValuesRef = useRef<string>('');
+  
   // Mark subscription notification as seen when visiting the article/episode
   useEffect(() => {
     if (
@@ -456,6 +459,21 @@ export const ArticlePage = () => {
     ) {
       return;
     }
+    
+    // Create a string representation of dependencies to detect actual changes
+    const currentValues = JSON.stringify({
+      groupId: articleData.groupId,
+      type: articleData.type,
+      identifier,
+    });
+    
+    // Only mark as seen if values actually changed
+    if (currentValues === prevNotificationValuesRef.current) {
+      return;
+    }
+    
+    prevNotificationValuesRef.current = currentValues;
+    
     const kind =
       articleData.type === 'episode' ? 'episodes' : 'articles';
     const notificationId = `subwire-subscription-${kind}-${articleData.groupId}`;

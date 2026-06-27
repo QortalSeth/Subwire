@@ -3,7 +3,7 @@
  * This provides a convenient way to check subscription status in React components
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useGlobal } from 'qapp-core';
 import { checkSubscriptionStatus } from '../utils/checkSubscriptionStatus';
 
@@ -162,11 +162,36 @@ export function useCheckSubscriptionStatusLib(
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Track previous values to prevent infinite re-renders
+  const prevAddressRef = useRef<string>('');
+  const prevGroupIdRef = useRef<number>(0);
+  const prevIdentifierOperationsRef = useRef<string>('');
+  const prevEnabledRef = useRef<boolean>(true);
+  const prevRefreshKeyRef = useRef<number>(0);
+
   const refresh = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
   }, []);
 
   useEffect(() => {
+    const currentIdentifierOperations = identifierOperations ? 'present' : '';
+
+    if (
+      address === prevAddressRef.current &&
+      groupId === prevGroupIdRef.current &&
+      currentIdentifierOperations === prevIdentifierOperationsRef.current &&
+      enabled === prevEnabledRef.current &&
+      refreshKey === prevRefreshKeyRef.current
+    ) {
+      return;
+    }
+
+    prevAddressRef.current = address || '';
+    prevGroupIdRef.current = groupId || 0;
+    prevIdentifierOperationsRef.current = currentIdentifierOperations;
+    prevEnabledRef.current = enabled;
+    prevRefreshKeyRef.current = refreshKey;
+
     if (!enabled) {
       return;
     }
