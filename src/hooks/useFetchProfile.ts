@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGlobal } from 'qapp-core';
 import { fetchProfileFromQdn, Profile } from '../utils/profileQdn';
 
@@ -21,7 +21,26 @@ export function useFetchProfile(qortalName: string): UseFetchProfileReturn {
   const [error, setError] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
+  // Track previous values to prevent infinite re-renders
+  const prevQortalNameRef = useRef<string>('');
+  const prevIdentifierOperationsRef = useRef<string>('');
+  const prevRefetchTriggerRef = useRef<number>(0);
+
   useEffect(() => {
+    const currentIdentifierOperations = identifierOperations ? 'present' : '';
+    
+    if (
+      qortalName === prevQortalNameRef.current &&
+      currentIdentifierOperations === prevIdentifierOperationsRef.current &&
+      refetchTrigger === prevRefetchTriggerRef.current
+    ) {
+      return;
+    }
+
+    prevQortalNameRef.current = qortalName;
+    prevIdentifierOperationsRef.current = currentIdentifierOperations;
+    prevRefetchTriggerRef.current = refetchTrigger;
+
     let isMounted = true;
 
     const fetchProfile = async () => {

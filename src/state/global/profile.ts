@@ -67,6 +67,10 @@ export const memberGroupsAtom = atom<Map<number, string> | null>(null);
 // Groups the user is subscribed to (member of but not owner). Map<groupId, groupName>.
 export const mySubscriptionGroupsAtom = atom<Map<number, string> | null>(null);
 
+// Groups the user owns (for identifying own publications on discover page). Map<groupId, groupName>.
+// Note: This is different from ownedGroupsAtom which stores full OwnedGroup[] for group management.
+export const ownedGroupsMapAtom = atom<Map<number, string> | null>(null);
+
 // Group subscription search prefixes (built globally for notifications + DiscoverPage)
 export const groupArticleSearchPrefixesAtom = atom<string[] | null>(null);
 export const groupEpisodeSearchPrefixesAtom = atom<string[] | null>(null);

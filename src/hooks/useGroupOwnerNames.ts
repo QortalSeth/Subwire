@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
@@ -6,6 +6,7 @@ import {
   isLoadingGroupOwnerNamesAtom,
   memberGroupsAtom,
   mySubscriptionGroupsAtom,
+  ownedGroupsMapAtom,
 } from '../state/global/profile';
 
 /**
@@ -19,13 +20,26 @@ export function useGroupOwnerNames() {
   const setIsLoading = useSetAtom(isLoadingGroupOwnerNamesAtom);
   const setMemberGroups = useSetAtom(memberGroupsAtom);
   const setMySubscriptionGroups = useSetAtom(mySubscriptionGroupsAtom);
+  const setOwnedGroupsMap = useSetAtom(ownedGroupsMapAtom);
+
+  // Track previous values to prevent infinite re-renders
+  const prevAuthAddressRef = useRef<string>('');
 
   useEffect(() => {
+    const currentAuthAddress = auth?.address || '';
+
+    if (currentAuthAddress === prevAuthAddressRef.current) {
+      return;
+    }
+
+    prevAuthAddressRef.current = currentAuthAddress;
+
     const fetchGroupOwnerNames = async () => {
       if (!auth?.address) {
         setGroupOwnerNames([]);
         setMemberGroups(new Map());
         setMySubscriptionGroups(new Map());
+        setOwnedGroupsMap(new Map());
         setIsLoading(false);
         return;
       }
@@ -44,10 +58,12 @@ export function useGroupOwnerNames() {
           setGroupOwnerNames([]);
           setMemberGroups(new Map());
           setMySubscriptionGroups(new Map());
+          setOwnedGroupsMap(new Map());
           setIsLoading(false);
           return;
         }
 
+        // All member groups (including owned)
         const groupsMap = new Map<number, string>();
         groupsFiltered.forEach((group: any) => {
           if (group.groupId && group.groupName) {
@@ -55,6 +71,19 @@ export function useGroupOwnerNames() {
           }
         });
         setMemberGroups(groupsMap);
+
+        // Groups user owns (for identifying own publications on discover page)
+        const ownedGroupsMap = new Map<number, string>();
+        groupsFiltered
+          .filter((group: any) => group?.owner === auth?.address)
+          .forEach((group: any) => {
+            if (group.groupId && group.groupName) {
+              ownedGroupsMap.set(group.groupId, group.groupName);
+            }
+          });
+        setOwnedGroupsMap(ownedGroupsMap);
+
+        // Groups user is subscribed to (member but not owner)
         const groupsSubscriptionMap = new Map<number, string>();
         groupsFiltered
           .filter((group: any) => group?.owner !== auth?.address)
@@ -64,10 +93,11 @@ export function useGroupOwnerNames() {
             }
           });
         setMySubscriptionGroups(groupsSubscriptionMap);
+
+        // All group owner names (including own - for discover page filtering)
         const validNames = Array.from(
           new Set(
             groupsFiltered
-              .filter((group: any) => group?.owner !== auth?.address)
               .map((group: any) => group.ownerPrimaryName)
               .filter((name): name is string => Boolean(name))
           )
@@ -78,6 +108,7 @@ export function useGroupOwnerNames() {
         setGroupOwnerNames([]);
         setMemberGroups(new Map());
         setMySubscriptionGroups(new Map());
+        setOwnedGroupsMap(new Map());
       } finally {
         setIsLoading(false);
       }
@@ -90,5 +121,6 @@ export function useGroupOwnerNames() {
     setIsLoading,
     setMemberGroups,
     setMySubscriptionGroups,
+    setOwnedGroupsMap,
   ]);
 }

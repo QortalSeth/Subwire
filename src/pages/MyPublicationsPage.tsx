@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Container,
@@ -89,6 +89,11 @@ export const MyPublicationsPage = () => {
   const [resources, setResources] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Track previous values to prevent infinite re-renders
+  const prevAuthNameRef = useRef<string>('');
+  const prevIdentifierOperationsRef = useRef<string>('');
+  const prevListsRef = useRef<string>('');
+
   // Fetch user's articles using lists.fetchResourcesResultsOnly (like example app)
   const fetchArticles = useCallback(async () => {
     if (!auth?.name || !identifierOperations || !lists) {
@@ -130,8 +135,24 @@ export const MyPublicationsPage = () => {
 
   // Fetch articles on mount and when user changes
   useEffect(() => {
+    const currentAuthName = auth?.name || '';
+    const currentIdentifierOperations = identifierOperations ? 'present' : '';
+    const currentLists = lists ? 'present' : '';
+
+    if (
+      currentAuthName === prevAuthNameRef.current &&
+      currentIdentifierOperations === prevIdentifierOperationsRef.current &&
+      currentLists === prevListsRef.current
+    ) {
+      return;
+    }
+
+    prevAuthNameRef.current = currentAuthName;
+    prevIdentifierOperationsRef.current = currentIdentifierOperations;
+    prevListsRef.current = currentLists;
+
     fetchArticles();
-  }, [fetchArticles]);
+  }, [auth?.name, identifierOperations, lists, fetchArticles]);
 
   const handleDeleteConfirm = async () => {
     if (!selectedArticle || !lists) return;

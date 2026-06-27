@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { styled } from '@mui/material/styles';
 import {
   Container,
@@ -293,23 +293,39 @@ export const ProfilePage = () => {
     return 'Subscribe';
   };
 
+  // Track previous coverImage to detect when it actually changes
+  const prevCoverImageRef = useRef<string | undefined>(undefined);
+  
   // Preload cover image and fade it in once loaded
   useEffect(() => {
-    if (!profile?.coverImage) {
+    const currentCoverImage = profile?.coverImage;
+    
+    // Only reload if coverImage actually changed
+    if (currentCoverImage === prevCoverImageRef.current) {
+      return;
+    }
+    
+    prevCoverImageRef.current = currentCoverImage;
+    
+    if (!currentCoverImage) {
       setCoverImageLoaded(false);
       return;
     }
     setCoverImageLoaded(false);
     const img = new window.Image();
-    img.src = profile.coverImage;
+    img.src = currentCoverImage;
     img.onload = () => setCoverImageLoaded(true);
   }, [profile?.coverImage]);
 
+  // Track previous profile existence to detect when profile actually loads
+  const prevProfileExistsRef = useRef(false);
+  
   // Wait up to 3 seconds for profile to load before showing the list
   // This ensures encrypted content is included from the start if available
   useEffect(() => {
     // Reset when name changes
     setIsReadyToShowList(false);
+    prevProfileExistsRef.current = false;
 
     // Set up 3-second timeout
     const timeout = setTimeout(() => {
@@ -323,7 +339,11 @@ export const ProfilePage = () => {
           ? globalProfileData
           : fetchedProfile;
 
-      if (currentProfile !== null && currentProfile !== undefined) {
+      const profileExists = currentProfile !== null && currentProfile !== undefined;
+      
+      // Only trigger if profile existence changed from false to true
+      if (profileExists && !prevProfileExistsRef.current) {
+        prevProfileExistsRef.current = true;
         clearTimeout(timeout);
         setIsReadyToShowList(true);
       }
@@ -333,8 +353,11 @@ export const ProfilePage = () => {
 
     // Cleanup timeout on unmount or name change
     return () => clearTimeout(timeout);
-  }, [name, isOwnProfile, profileName, globalProfileData, fetchedProfile]);
+  }, [name, isOwnProfile, profileName]);
 
+  // Track previous episode search prefix to detect when it actually changes
+  const prevEpisodeSearchPrefixRef = useRef<string | null>(null);
+  
   // Build the episode search prefix
   useEffect(() => {
     const buildPrefix = async () => {
@@ -345,7 +368,12 @@ export const ProfilePage = () => {
           ENTITY_EPISODE,
           ENTITY_ROOT
         );
-        setEpisodeSearchPrefix(episodePrefix);
+        
+        // Only update if prefix actually changed
+        if (episodePrefix !== prevEpisodeSearchPrefixRef.current) {
+          prevEpisodeSearchPrefixRef.current = episodePrefix;
+          setEpisodeSearchPrefix(episodePrefix);
+        }
       } catch (error) {
         console.error('Failed to build episode search prefix:', error);
       }
@@ -354,6 +382,11 @@ export const ProfilePage = () => {
     buildPrefix();
   }, [identifierOperations]);
 
+  // Track previous values to detect when they actually change
+  const prevGroupIdRef = useRef<number | undefined>(undefined);
+  const prevEncryptedArticlePrefixRef = useRef<string | null>(null);
+  const prevEncryptedEpisodePrefixRef = useRef<string | null>(null);
+  
   // Build encrypted article/episode search prefixes if a groupId is available
   // This runs independently and doesn't block the main content loading
   useEffect(() => {
@@ -369,10 +402,23 @@ export const ProfilePage = () => {
         ? globalProfileData?.groupId
         : fetchedProfile?.groupId;
 
+      // Only rebuild if groupId actually changed
+      if (groupId === prevGroupIdRef.current) {
+        return;
+      }
+      
+      prevGroupIdRef.current = groupId;
+
       if (!groupId) {
         // No group attached - clear any existing prefixes
-        setEncryptedArticlePrefix(null);
-        setEncryptedEpisodePrefix(null);
+        if (prevEncryptedArticlePrefixRef.current !== null) {
+          prevEncryptedArticlePrefixRef.current = null;
+          setEncryptedArticlePrefix(null);
+        }
+        if (prevEncryptedEpisodePrefixRef.current !== null) {
+          prevEncryptedEpisodePrefixRef.current = null;
+          setEncryptedEpisodePrefix(null);
+        }
         return;
       }
 
@@ -384,7 +430,12 @@ export const ProfilePage = () => {
             '',
             GROUP_PRIVATE_ARTICLE
           );
-        setEncryptedArticlePrefix(encryptedArticlePfx);
+        
+        // Only update if prefix actually changed
+        if (encryptedArticlePfx !== prevEncryptedArticlePrefixRef.current) {
+          prevEncryptedArticlePrefixRef.current = encryptedArticlePfx;
+          setEncryptedArticlePrefix(encryptedArticlePfx);
+        }
 
         // Build prefix for encrypted episodes
         const encryptedEpisodePfx =
@@ -393,20 +444,19 @@ export const ProfilePage = () => {
             '',
             GROUP_PRIVATE_EPISODE
           );
-        setEncryptedEpisodePrefix(encryptedEpisodePfx);
+        
+        // Only update if prefix actually changed
+        if (encryptedEpisodePfx !== prevEncryptedEpisodePrefixRef.current) {
+          prevEncryptedEpisodePrefixRef.current = encryptedEpisodePfx;
+          setEncryptedEpisodePrefix(encryptedEpisodePfx);
+        }
       } catch (error) {
         console.error('Failed to build encrypted search prefixes:', error);
       }
     };
 
     buildEncryptedPrefixes();
-  }, [
-    identifierOperations,
-    name,
-    isOwnProfile,
-    globalProfileData?.groupId,
-    fetchedProfile?.groupId,
-  ]);
+  }, [identifierOperations, name, isOwnProfile]);
 
   // Search params for articles
   const articlesSearch = useMemo(() => {
